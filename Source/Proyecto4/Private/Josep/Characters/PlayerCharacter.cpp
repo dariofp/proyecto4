@@ -12,7 +12,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Josep/Components/AttributeComponent.h"
-#include "Josep/Enemy/Enemy.h"
+#include "Kismet/KismetMathLibrary.h"
 //#include "GroomVisualizationData.h"
 #include "Josep/Items/Item.h"
 #include "Josep/Items/Weapons/Weapon.h"
@@ -65,8 +65,13 @@ void APlayerCharacter::Tick(float DeltaTime)
 		Attributes->RegenMana(DeltaTime);
 		PlayerOverlay->SetManaBarPercent(Attributes->GetManaPercent());
 	}
-	if (CombatTarget) {
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Your Message"));
+
+	if (CombatTarget) 
+	{
+		FVector TargetLocation = CombatTarget->GetActorLocation();
+		TargetLocation.Z -= 60.f;
+		FRotator AimingTargetRotation = (TargetLocation - CameraBoom->GetComponentLocation()).Rotation();
+		GetController()->SetControlRotation(AimingTargetRotation);
 	}
 	/*
 	if (bIsTargeting)
@@ -94,7 +99,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 		EnhancedInputComponent->BindAction(EKeyAction, ETriggerEvent::Triggered, this, &APlayerCharacter::EKeyPressed);
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Attack);
 		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Dodge);
-		EnhancedInputComponent->BindAction(LockEnemyAction, ETriggerEvent::Triggered, this, &APlayerCharacter::LockEnemy);
+		EnhancedInputComponent->BindAction(LockAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Lock);
 		//EnhancedInputComponent->BindAction(DodgeComboAction, ETriggerEvent::Triggered, this, &APlayerCharacter::DodgeCombo);
 	}
 }
@@ -157,7 +162,6 @@ void APlayerCharacter::BeginPlay()
 }
 void APlayerCharacter::LockOn()
 {
-	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Calculando..."));
 	const FVector MyLocation = GetActorLocation();
 	FVector ClosestEnemyDistance(10000.f);
 	AActor* ClosestEnemy{};
@@ -168,7 +172,6 @@ void APlayerCharacter::LockOn()
 		{
 			ClosestEnemy = Enemy;
 			ClosestEnemyDistance = DistanceToEnemy;
-			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Buscando"));
 		}
 	}
 	CombatTarget = ClosestEnemy;
@@ -214,10 +217,13 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 
 void APlayerCharacter::Look(const FInputActionValue& Value)
 {
-	const FVector2D LookAxisVector = Value.Get<FVector2D>();
+	if (!CombatTarget) 
+	{
+		const FVector2D LookAxisVector = Value.Get<FVector2D>();
 
-	AddControllerPitchInput(LookAxisVector.Y);
-	AddControllerYawInput(LookAxisVector.X);
+		AddControllerPitchInput(LookAxisVector.Y);
+		AddControllerYawInput(LookAxisVector.X);
+	}
 }
 
 void APlayerCharacter::EKeyPressed()
@@ -277,9 +283,8 @@ void APlayerCharacter::Dodge()
 	}
 }
 
-void APlayerCharacter::LockEnemy()
+void APlayerCharacter::Lock()
 {
-	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Entro"));
 	LockOn();
 }
 

@@ -52,6 +52,11 @@ public:
 	virtual void AddGold(int32 GoldAdded) override;
 	/* </IPickupInterface> */
 
+	UPROPERTY(EditAnywhere)
+	float CameraRotationSpeed = 20.f;
+	UPROPERTY(EditAnywhere)
+	float CameraDistanceFromTarget = 30.f;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -85,7 +90,7 @@ protected:
 	UInputAction* DodgeAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
-	UInputAction* LockEnemyAction;
+	UInputAction* LockAction;
 
 	/*
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
@@ -99,7 +104,7 @@ protected:
 	void EKeyPressed();
 	virtual void Attack() override;
 	void Dodge();
-	void LockEnemy();
+	void Lock();
 	//void DodgeCombo(const FInputActionValue& Value);
 
 	/* Combat */
