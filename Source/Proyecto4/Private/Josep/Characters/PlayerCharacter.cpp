@@ -10,7 +10,9 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SphereComponent.h"
 #include "Josep/Components/AttributeComponent.h"
+#include "Josep/Enemy/Enemy.h"
 //#include "GroomVisualizationData.h"
 #include "Josep/Items/Item.h"
 #include "Josep/Items/Weapons/Weapon.h"
@@ -25,7 +27,6 @@ APlayerCharacter::APlayerCharacter()
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationRoll = false;
-	PrimaryActorTick.bCanEverTick = true;
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.f, 400.f, 0.f);
@@ -43,6 +44,11 @@ APlayerCharacter::APlayerCharacter()
 	ViewCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ViewCamera"));
 	ViewCamera->SetupAttachment(CameraBoom);
 
+	DetectionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("DetectionSphere"));
+	DetectionSphere->SetupAttachment(GetRootComponent()); 
+	DetectionSphere->InitSphereRadius(300.0f);
+	DetectionSphere->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Overlap);
+
 	/*Hair = CreateDefaultSubobject<UGroomComponent>(TEXT("Hair"));
 	Hair->SetupAttachment(GetMesh());
 	Hair->AttachmentName = FString("head");
@@ -59,6 +65,22 @@ void APlayerCharacter::Tick(float DeltaTime)
 		Attributes->RegenMana(DeltaTime);
 		PlayerOverlay->SetManaBarPercent(Attributes->GetManaPercent());
 	}
+	if (CombatTarget) {
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Your Message"));
+	}
+	/*
+	if (bIsTargeting)
+	{
+		if (CombatTarget != nullptr) 
+		{
+			GetRotationWarpTarget();
+		}
+		else 
+		{
+			bIsTargeting = false;
+		}
+		
+	}*/
 }
 
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -72,10 +94,10 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 		EnhancedInputComponent->BindAction(EKeyAction, ETriggerEvent::Triggered, this, &APlayerCharacter::EKeyPressed);
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Attack);
 		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Dodge);
+		EnhancedInputComponent->BindAction(LockEnemyAction, ETriggerEvent::Triggered, this, &APlayerCharacter::LockEnemy);
 		//EnhancedInputComponent->BindAction(DodgeComboAction, ETriggerEvent::Triggered, this, &APlayerCharacter::DodgeCombo);
 	}
 }
-
 void APlayerCharacter::Jump()
 {
 	if (IsUnoccupied())
@@ -125,13 +147,53 @@ void APlayerCharacter::AddGold(int32 GoldAdded)
 	}
 }
 
-
-
 void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	Tags.Add(FName("EngageableTarget"));
 	InitializePlayerOverlay();
+	DetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &APlayerCharacter::OnSphereOverlap);
+	DetectionSphere->OnComponentEndOverlap.AddDynamic(this, &APlayerCharacter::OnSphereEndOverlap);
+}
+void APlayerCharacter::LockOn()
+{
+	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Calculando..."));
+	const FVector MyLocation = GetActorLocation();
+	FVector ClosestEnemyDistance(10000.f);
+	AActor* ClosestEnemy{};
+	for (auto Enemy : EnemiesInRange)
+	{
+		FVector DistanceToEnemy = MyLocation - Enemy->GetActorLocation();
+		if (DistanceToEnemy.Length() < ClosestEnemyDistance.Length())
+		{
+			ClosestEnemy = Enemy;
+			ClosestEnemyDistance = DistanceToEnemy;
+			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Buscando"));
+		}
+	}
+	CombatTarget = ClosestEnemy;
+
+}
+
+void APlayerCharacter::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (OtherActor->ActorHasTag(FName("Enemy")))
+	{
+		EnemiesInRange.AddUnique(OtherActor);
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Enemigo Detectado"));
+	}
+}
+
+void APlayerCharacter::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (EnemiesInRange.Contains(OtherActor))
+	{
+		EnemiesInRange.Remove(OtherActor);
+	}
+	if (CombatTarget == OtherActor)
+	{
+		CombatTarget = nullptr;
+	}
 }
 
 void APlayerCharacter::Move(const FInputActionValue& Value)
@@ -146,6 +208,8 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 
 	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 	AddMovementInput(RightDirection, MovementVector.X);
+
+	Direccion = MovementVector;
 }
 
 void APlayerCharacter::Look(const FInputActionValue& Value)
@@ -190,7 +254,21 @@ void APlayerCharacter::Dodge()
 {
 	if (IsOccupied() || !HasEnoughMana()) return;
 
-	PlayDodgeMontage();
+	FVector DodgeDirectionVector = FVector(Direccion.Y, Direccion.X, 0).GetSafeNormal();
+
+	FVector CharacterVelocity = GetCharacterMovement()->Velocity;
+
+	if (!DodgeDirectionVector.IsNearlyZero() && CharacterVelocity != FVector::ZeroVector)
+	{
+		//PlayAttackMontage();
+		DodgeDirection = CalculateDodgeDirection(DodgeDirectionVector);
+		//bIsDodging = true;
+		PlayDodgeAnimation(DodgeDirection);
+	}
+	else 
+	{
+		PlayDodgeMontage("DodgeBack");
+	}
 	ActionState = EActionState::EAS_Dodge;
 	if (Attributes && PlayerOverlay)
 	{
@@ -199,18 +277,52 @@ void APlayerCharacter::Dodge()
 	}
 }
 
-/*
-void APlayerCharacter::DodgeCombo(const FInputActionValue& Value)
+void APlayerCharacter::LockEnemy()
 {
-	const FVector2D MovementVector = Value.Get<FVector2D>();
-	if (MovementVector.Y < 0) {
-		//PlayMontageSection(DodgeMontage, FName("DodgeLeft"));
-	}
-	if (MovementVector.Y > 0) {
-		//PlayMontageSection(DodgeMontage, FName("DodgeRight"));
+	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Entro"));
+	LockOn();
+}
+
+void APlayerCharacter::PlayDodgeAnimation(EDodgeDirection DodgeDirection2)
+{
+	switch (DodgeDirection2)
+	{
+		case EDodgeDirection::Forward:
+			PlayDodgeMontage("DodgeForward");
+			break;
+		case EDodgeDirection::Backward:
+			PlayDodgeMontage("DodgeBack");
+			break;
+		case EDodgeDirection::Left:
+			PlayDodgeMontage("DodgeLeft");
+			break;
+		case EDodgeDirection::Right:
+			PlayDodgeMontage("DodgeRight");
+			break;
 	}
 }
-*/
+
+EDodgeDirection APlayerCharacter::CalculateDodgeDirection(const FVector& Direction)
+{
+	const float Angle = FMath::Atan2(Direction.Y, Direction.X) * 180.f / PI;
+
+	if (Angle < 45.f && Angle >= -45.f)
+	{
+		return EDodgeDirection::Forward;
+	}
+	else if (Angle >= 45.f && Angle < 135.f)
+	{
+		return EDodgeDirection::Right;
+	}
+	else if (Angle >= -135.f && Angle < -45.f)
+	{
+		return EDodgeDirection::Left;
+	}
+	else
+	{
+		return EDodgeDirection::Backward;
+	}
+}
 
 void APlayerCharacter::EquipWeapon(AWeapon* Weapon)
 {

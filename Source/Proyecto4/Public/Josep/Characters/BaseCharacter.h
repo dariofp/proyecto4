@@ -40,7 +40,7 @@ protected:
 	void PlayHitReactMontage(const FName& SectionName);
 	virtual int32 PlayAttackMontage();
 	virtual int32 PlayDeathMontage();
-	virtual void PlayDodgeMontage();
+	virtual void PlayDodgeMontage(const FName& SectionName);
 	void StopAttackMontage();
 
 	UFUNCTION(BlueprintCallable)

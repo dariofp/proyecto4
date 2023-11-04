@@ -13,11 +13,22 @@ class UInputMappingContext;
 class UInputAction;
 class USpringArmComponent;
 class UCameraComponent;
+class USphereComponent;
 class AItem;
 class ASoul;
 //class UGroomComponent;
 class UAnimMontage;
 class UPlayerOverlay;
+
+UENUM(BlueprintType)
+enum class EDodgeDirection : uint8
+{
+	None,
+	Left,
+	Right,
+	Forward,
+	Backward
+};
 
 UCLASS()
 class PROYECTO4_API APlayerCharacter : public ABaseCharacter, public IPickupInterface
@@ -44,6 +55,14 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	void LockOn();
+
+	UFUNCTION()
+	virtual void OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	virtual void OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
 	UInputMappingContext* SlashContext;
 
@@ -64,6 +83,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
 	UInputAction* DodgeAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
+	UInputAction* LockEnemyAction;
+
 	/*
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
 	UInputAction* DodgeComboAction;
@@ -76,6 +99,7 @@ protected:
 	void EKeyPressed();
 	virtual void Attack() override;
 	void Dodge();
+	void LockEnemy();
 	//void DodgeCombo(const FInputActionValue& Value);
 
 	/* Combat */
@@ -91,6 +115,8 @@ protected:
 	virtual void Die() override;
 	bool HasEnoughMana();
 	bool IsOccupied();
+	void PlayDodgeAnimation(EDodgeDirection DodgeDirection);
+	EDodgeDirection CalculateDodgeDirection(const FVector& Direction);
 
 	UFUNCTION(BlueprintCallable)
 	void AttachWeaponToBack();
@@ -104,11 +130,19 @@ protected:
 	UFUNCTION(BlueprintCallable)
 	void HitReactEnd();
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	EDodgeDirection DodgeDirection;
+
+	bool bIsTargeting = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TArray<AActor*> EnemiesInRange;
+
 private:
 	bool IsUnoccupied();
 	void InitializePlayerOverlay();
 	void SetHUDHealth();
-
+	FVector2D Direccion;
 	/* Character components */
 
 	UPROPERTY(VisibleAnywhere)
@@ -116,6 +150,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* ViewCamera;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
+	USphereComponent* DetectionSphere;
 
 	/*UPROPERTY(VisibleAnywhere, Category = Hair)
 	UGroomComponent* Hair;
@@ -136,6 +173,14 @@ private:
 
 	UPROPERTY()
 	UPlayerOverlay* PlayerOverlay;
+
+	UPROPERTY(EditInstanceOnly, Category = "Target")
+	TArray<AActor*> EnemyTargets;
+
+
+
+	UPROPERTY(EditAnywhere)
+	double TargetRadius = 200.f;
 
 public:
 	FORCEINLINE ECharacterState GetCharacterState() const { return CharacterState; }

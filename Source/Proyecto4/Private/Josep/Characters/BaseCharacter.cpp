@@ -155,9 +155,9 @@ int32 ABaseCharacter::PlayDeathMontage()
 	return Selection;
 }
 
-void ABaseCharacter::PlayDodgeMontage()
+void ABaseCharacter::PlayDodgeMontage(const FName& SectionName)
 {
-	PlayMontageSection(DodgeMontage, FName("DodgeBack"));
+	PlayMontageSection(DodgeMontage, SectionName);
 }
 
 void ABaseCharacter::StopAttackMontage()
