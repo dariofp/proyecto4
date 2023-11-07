@@ -73,19 +73,6 @@ void APlayerCharacter::Tick(float DeltaTime)
 		FRotator AimingTargetRotation = (TargetLocation - CameraBoom->GetComponentLocation()).Rotation();
 		GetController()->SetControlRotation(AimingTargetRotation);
 	}
-	/*
-	if (bIsTargeting)
-	{
-		if (CombatTarget != nullptr) 
-		{
-			GetRotationWarpTarget();
-		}
-		else 
-		{
-			bIsTargeting = false;
-		}
-		
-	}*/
 }
 
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -251,7 +238,7 @@ void APlayerCharacter::Attack()
 	Super::Attack();
 	if (CanAttack())
 	{
-		PlayAttackMontage();
+		SelectAttackMontageSection(MeleeMontage);
 		ActionState = EActionState::EAS_Melee;
 	}
 }

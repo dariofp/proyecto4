@@ -155,6 +155,37 @@ int32 ABaseCharacter::PlayDeathMontage()
 	return Selection;
 }
 
+void ABaseCharacter::SelectAttackMontageSection(UAnimMontage* Montage)
+{
+	GetWorldTimerManager().ClearTimer(TimerCombo);
+	AttackCount++;
+	FName SectionName = FName("Attack");
+	if (AttackCount <= MaxCombo) 
+	{
+		GetWorldTimerManager().SetTimer(TimerCombo, this, &ABaseCharacter::ComboEnd, TimeInCombo, false);
+		
+		SectionName.SetNumber(AttackCount + 1);
+		PlayMontageSection(Montage, SectionName);
+	}
+	else 
+	{
+		ComboEnd();
+		GetWorldTimerManager().SetTimer(TimerCombo, this, &ABaseCharacter::ComboEnd, TimeInCombo, false);
+		SectionName.SetNumber(AttackCount + 1);
+		PlayMontageSection(Montage, SectionName);
+	}
+}
+
+void ABaseCharacter::ComboAdd() 
+{
+	AttackCount++;
+}
+
+void ABaseCharacter::ComboEnd()
+{
+	AttackCount = 0;
+}
+
 void ABaseCharacter::PlayDodgeMontage(const FName& SectionName)
 {
 	PlayMontageSection(DodgeMontage, SectionName);

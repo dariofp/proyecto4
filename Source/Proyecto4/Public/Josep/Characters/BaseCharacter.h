@@ -40,6 +40,7 @@ protected:
 	void PlayHitReactMontage(const FName& SectionName);
 	virtual int32 PlayAttackMontage();
 	virtual int32 PlayDeathMontage();
+	void SelectAttackMontageSection(UAnimMontage* Montage);
 	virtual void PlayDodgeMontage(const FName& SectionName);
 	void StopAttackMontage();
 
@@ -58,6 +59,12 @@ protected:
 	UFUNCTION(BlueprintCallable)
 	void SetWeaponCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
 
+	UFUNCTION(BlueprintCallable)
+	void ComboAdd();
+
+	UFUNCTION(BlueprintCallable)
+	void ComboEnd();
+
 	UPROPERTY(VisibleAnywhere, Category = Weapon)
 	AWeapon* EquippedWeapon;
 
@@ -73,6 +80,18 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 	TEnumAsByte<EDeathPose> DeathPose;
 
+	UPROPERTY(EditAnywhere, Category = Combat)
+	int32 AttackCount;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	int32 MaxCombo;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+	UAnimMontage* MeleeMontage;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	float TimeInCombo;
+
 private:
 	void PlayMontageSection(UAnimMontage* Montage, const FName& SectionName);
 	int32 PlayRandomMontageSection(UAnimMontage* Montage, const TArray<FName>& SectionNames);
@@ -82,9 +101,6 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 	UParticleSystem* HitParticles;
-
-	UPROPERTY(EditDefaultsOnly, Category = Combat)
-	UAnimMontage* MeleeMontage;
 
 	UPROPERTY(EditDefaultsOnly, Category = Combat)
 	UAnimMontage* HitReactMontage;
@@ -100,6 +116,10 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 	TArray<FName> DeathMontageSections;
+
+	UPROPERTY()
+	FTimerHandle TimerCombo;
+
 public:
 	FORCEINLINE TEnumAsByte<EDeathPose> GetDeathPose() const { return DeathPose; }
 };
