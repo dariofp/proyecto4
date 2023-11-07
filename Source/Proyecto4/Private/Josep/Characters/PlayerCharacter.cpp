@@ -260,21 +260,28 @@ void APlayerCharacter::Dodge()
 {
 	if (IsOccupied() || !HasEnoughMana()) return;
 
-	FVector DodgeDirectionVector = FVector(Direccion.Y, Direccion.X, 0).GetSafeNormal();
-
 	FVector CharacterVelocity = GetCharacterMovement()->Velocity;
-
-	if (!DodgeDirectionVector.IsNearlyZero() && CharacterVelocity != FVector::ZeroVector)
-	{
-		//PlayAttackMontage();
-		DodgeDirection = CalculateDodgeDirection(DodgeDirectionVector);
-		//bIsDodging = true;
-		PlayDodgeAnimation(DodgeDirection);
-	}
-	else 
+	if (CharacterVelocity == FVector::ZeroVector) 
 	{
 		PlayDodgeMontage("DodgeBack");
 	}
+	if (CombatTarget) 
+	{
+		FVector DodgeDirectionVector = FVector(Direccion.Y, Direccion.X, 0).GetSafeNormal();
+
+		if (!DodgeDirectionVector.IsNearlyZero() && CharacterVelocity != FVector::ZeroVector)
+		{
+			//PlayAttackMontage();
+			DodgeDirection = CalculateDodgeDirection(DodgeDirectionVector);
+			//bIsDodging = true;
+			PlayDodgeAnimation(DodgeDirection);
+		}
+	}
+	else 
+	{
+			PlayDodgeMontage("DodgeNormal");
+	}
+
 	ActionState = EActionState::EAS_Dodge;
 	if (Attributes && PlayerOverlay)
 	{

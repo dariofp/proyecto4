@@ -5,7 +5,7 @@
 #include "Josep/Characters/PlayerCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/KismetMathLibrary.h"
-
+#include "KismetAnimationLibrary.h"
 void UPlayerAnimInstance::NativeInitializeAnimation()
 {
 	Super::NativeInitializeAnimation();
@@ -25,6 +25,7 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	if (PlayerCharacterMovement)
 	{
 		GroundSpeed = UKismetMathLibrary::VSizeXY(PlayerCharacterMovement->Velocity);
+		Direction = UKismetAnimationLibrary::CalculateDirection(PlayerCharacterMovement->Velocity, PlayerCharacter->GetActorRotation());
 		IsFalling = PlayerCharacterMovement->IsFalling();
 		CharacterState = PlayerCharacter->GetCharacterState();
 		ActionState = PlayerCharacter->GetActionState();
