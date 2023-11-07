@@ -16,7 +16,7 @@
 	"Plugins": [
 		{
 			"Name": "ModelingToolsEditorMode",
-			"Enabled": false,
+			"Enabled": true,
 			"TargetAllowList": [
 				"Editor"
 			]
