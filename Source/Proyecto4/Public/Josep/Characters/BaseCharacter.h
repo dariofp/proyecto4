@@ -24,6 +24,7 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	/* Combat */
+	UFUNCTION(BlueprintCallable)
 	virtual void GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter) override;
 	virtual void Attack();
 	virtual void Die();
