@@ -21,6 +21,17 @@ public:
 	ABaseCharacter();
 	virtual void Tick(float DeltaTime) override;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Projectile")
+	TSubclassOf<class ABaseProyectil> ProjectileClass;
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void SpawnProjectileFromAnimation(int32 Index);
+
+	UPROPERTY(EditDefaultsOnly, Category = "Projectile")
+	TArray<TSubclassOf<class ABaseProyectil>> ProjectileTypes; // TArray que almacena diferentes tipos de proyectiles
+
+	TArray<AActor*> OwnedObjects;
+
 protected:
 	virtual void BeginPlay() override;
 	/* Combat */

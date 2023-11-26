@@ -7,6 +7,7 @@
 #include "Josep/Components/AttributeComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Josep/BaseProyectil.h"
 
 ABaseCharacter::ABaseCharacter()
 {
@@ -19,6 +20,7 @@ ABaseCharacter::ABaseCharacter()
 void ABaseCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
 
 }
 
@@ -155,6 +157,28 @@ int32 ABaseCharacter::PlayDeathMontage()
 	return Selection;
 }
 
+void ABaseCharacter::SpawnProjectileFromAnimation(int32 Index)
+{
+	if (ProjectileTypes.IsValidIndex(Index))
+	{
+		if (ProjectileTypes[Index])
+		{
+			FVector SpawnLocation = GetMesh()->GetSocketLocation(FName("RightHandSocket"));
+			FRotator SpawnRotation = GetActorRotation();
+
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = this; // Establecer el propietario del proyectil como esta arma
+
+
+			ABaseProyectil* SpawnedProjectile = GetWorld()->SpawnActor<ABaseProyectil>(ProjectileTypes[Index], SpawnLocation, SpawnRotation, SpawnParams);
+			if (SpawnedProjectile)
+			{
+				// Configuración adicional del proyectil spawnado si es necesario
+			}
+		}
+	}
+}
+
 void ABaseCharacter::SelectAttackMontageSection(UAnimMontage* Montage)
 {
 	GetWorldTimerManager().ClearTimer(TimerCombo);
@@ -274,4 +298,3 @@ void ABaseCharacter::SetWeaponCollisionEnabled(ECollisionEnabled::Type Collision
 		EquippedWeapon->IgnoreActors.Empty();
 	}
 }
-
