@@ -11,6 +11,7 @@
 class AWeapon;
 class UAttributeComponent;
 class UAnimMontage;
+class UNiagaraSystem;
 
 UCLASS()
 class PROYECTO4_API ABaseCharacter : public ACharacter, public IHitInterface
@@ -31,6 +32,15 @@ public:
 	TArray<TSubclassOf<class ABaseProyectil>> ProjectileTypes; // TArray que almacena diferentes tipos de proyectiles
 
 	TArray<AActor*> OwnedObjects;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Effects")
+	TSubclassOf<class ALightningStrike> LightningStrikeClass; // Declaración de la clase LightningStrike
+
+	UFUNCTION(BlueprintCallable, Category = "Animation")
+	void SpawnLightningStrikeFromAnimation();
+
+	UPROPERTY(EditAnywhere, Category = "Effects")
+	UNiagaraSystem* LightningEffectSystem; // Niagara system for the lightning effect
 
 protected:
 	virtual void BeginPlay() override;
@@ -101,6 +111,15 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = Combat)
 	UAnimMontage* MeleeMontage;
 
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+	UAnimMontage* FireMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+	UAnimMontage* LightningMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+	UAnimMontage* GravityMontage;
+
 	UPROPERTY(EditAnywhere, Category = Combat)
 	float TimeInCombo;
 
@@ -110,6 +129,9 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 	USoundBase* HitSound;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+	UAnimMontage* PreviousMontage;
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 	UParticleSystem* HitParticles;
