@@ -7,7 +7,10 @@
 #include "Josep/Components/AttributeComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "Josep/BaseProyectil.h"
+#include "Josep/Projectiles/LightningStrike.h"
 
 ABaseCharacter::ABaseCharacter()
 {
@@ -167,7 +170,7 @@ void ABaseCharacter::SpawnProjectileFromAnimation(int32 Index)
 			FRotator SpawnRotation = GetActorRotation();
 
 			FActorSpawnParameters SpawnParams;
-			SpawnParams.Owner = this; // Establecer el propietario del proyectil como esta arma
+			SpawnParams.Owner = this;
 
 
 			ABaseProyectil* SpawnedProjectile = GetWorld()->SpawnActor<ABaseProyectil>(ProjectileTypes[Index], SpawnLocation, SpawnRotation, SpawnParams);
@@ -178,10 +181,67 @@ void ABaseCharacter::SpawnProjectileFromAnimation(int32 Index)
 		}
 	}
 }
+//FVector StartLocation = GetMesh()->GetSocketLocation(FName("RightHandSocket"));
+//FRotator SpawnRotation = GetActorRotation();
+//FVector ShootDirection = SpawnRotation.Vector();
+
+void ABaseCharacter::SpawnLightningStrikeFromAnimation()
+{
+	if (GetWorld() && LightningStrikeClass)
+	{
+
+		FVector CameraLocation;
+		FRotator CameraRotation;
+		GetController()->GetPlayerViewPoint(CameraLocation, CameraRotation);
+
+		FVector StartLocation = GetMesh()->GetSocketLocation(FName("RightHandSocket"));
+		FVector ShootDirection = CameraRotation.Vector();
+
+		float TraceDistance = 10000.0f;
+
+		FVector EndLocation = StartLocation + ShootDirection * TraceDistance;
+
+		FHitResult HitResult;
+		FCollisionQueryParams CollisionParams;
+
+		bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, CollisionParams);
+
+		if (bHit)
+		{
+			FVector CollisionPoint = HitResult.Location;
+			DrawDebugLine(
+				GetWorld(),
+				StartLocation,
+				HitResult.Location,
+				FColor(255, 0, 0),
+				false, -1, 0,
+				12.333
+			);
+
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = this;
+
+			UNiagaraComponent* ProjectileBeam = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), LightningEffectSystem, StartLocation);
+
+			if (ProjectileBeam)
+
+			{
+				ProjectileBeam->SetNiagaraVariableVec3(FString("PosicionFinal"), HitResult.Location);
+
+			}
+		}
+	}
+}
 
 void ABaseCharacter::SelectAttackMontageSection(UAnimMontage* Montage)
 {
 	GetWorldTimerManager().ClearTimer(TimerCombo);
+
+	if (PreviousMontage && PreviousMontage != Montage) {
+		AttackCount = 0;
+	}
+
+	PreviousMontage = Montage;
 	AttackCount++;
 	FName SectionName = FName("Attack");
 	if (AttackCount <= MaxCombo) 

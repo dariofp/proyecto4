@@ -30,6 +30,13 @@ enum class EDodgeDirection : uint8
 	Backward
 };
 
+UENUM(BlueprintType)
+enum class ETargetSwitchDirection
+{
+	Left,
+	Right
+};
+
 UCLASS()
 class PROYECTO4_API APlayerCharacter : public ABaseCharacter, public IPickupInterface
 {
@@ -40,6 +47,8 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual void Jump() override;
+
+	void ToggleAimState();
 
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 	/* <IHitInterface> */
@@ -56,9 +65,18 @@ public:
 	float CameraRotationSpeed = 20.f;
 	UPROPERTY(EditAnywhere)
 	float CameraDistanceFromTarget = 30.f;
-
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool isAiming = false;
 protected:
 	virtual void BeginPlay() override;
+
+	void SwitchTargetAxis(const FInputActionValue& AxisValue);
+
+	void EnableTrigger();
+
+	void ChangeTargetByDirection(ETargetSwitchDirection SwitchDirection);
+
+	void LockOn(bool bSwitchLeft);
 
 	void LockOn();
 
@@ -87,10 +105,25 @@ protected:
 	UInputAction* AttackAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
+	UInputAction* AttackFireAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
+	UInputAction* AttackLightningAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
+	UInputAction* AttackGravityAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
 	UInputAction* DodgeAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
 	UInputAction* LockAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
+	UInputAction* AimAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
+	UInputAction* ChangeTargetAction;
 
 	/*
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
@@ -103,6 +136,9 @@ protected:
 	void Look(const FInputActionValue& Value);
 	void EKeyPressed();
 	virtual void Attack() override;
+	virtual void AttackFire();
+	virtual void AttackGravity();
+	virtual void AttackLightning();
 	void Dodge();
 	void Lock();
 	//void DodgeCombo(const FInputActionValue& Value);
@@ -150,7 +186,7 @@ private:
 	FVector2D Direccion;
 	/* Character components */
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
@@ -176,7 +212,7 @@ private:
 	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	EActionState ActionState = EActionState::EAS_Unoccupied;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	UPlayerOverlay* PlayerOverlay;
 
 	UPROPERTY(EditInstanceOnly, Category = "Target")
@@ -186,6 +222,10 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	double TargetRadius = 200.f;
+
+	bool bCanTrigger = true;
+	const float TriggerCooldown = 0.5f; // Set your desired cooldown time here
+	FTimerHandle TimerHandle_TriggerCooldown;
 
 public:
 	FORCEINLINE ECharacterState GetCharacterState() const { return CharacterState; }
