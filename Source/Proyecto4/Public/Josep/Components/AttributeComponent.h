@@ -48,13 +48,28 @@ private:
 	float ManaRegenRate = 8.f;
 
 public:
+	
+	UFUNCTION(BlueprintCallable, Category = "Actor Attributes")
 	void ReceiveDamage(float Damage);
+
+	UFUNCTION(BlueprintCallable, Category = "Actor Attributes")
 	void UseMana(float ManaCost);
+
+	UFUNCTION(BlueprintPure, Category = "Actor Attributes")
 	float GetHealthPercent();
+
+	UFUNCTION(BlueprintPure, Category = "Actor Attributes")
 	float GetManaPercent();
+
+	UFUNCTION(BlueprintPure, Category = "Actor Attributes")
 	bool IsAlive();
+
+	UFUNCTION(BlueprintCallable, Category = "Actor Attributes")
 	void AddSouls(int32 NumberOfSouls);
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Currency")
 	void AddGold(int32 AmountOfGold);
+
 	FORCEINLINE void SetGold(int32 NumberOfGold) { Gold = NumberOfGold; }
 	FORCEINLINE int32 GetGold() const { return Gold; }
 	FORCEINLINE int32 GetSouls() const { return Souls; }
