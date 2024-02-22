@@ -1,9 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
+
+#include "Josep/Projectiles/LightningStrike.h"
 #include "CoreMinimal.h"
 #include "UObject/NameTypes.h"
 #include "DrawDebugHelpers.h"
-#include "Josep/Projectiles/LightningStrike.h"
 
 ALightningStrike::ALightningStrike()
 {
