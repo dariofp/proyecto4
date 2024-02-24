@@ -63,6 +63,7 @@ protected:
 	virtual int32 PlayAttackMontage();
 	virtual int32 PlayDeathMontage();
 	void SelectAttackMontageSection(UAnimMontage* Montage);
+	void PlayMontageSection(UAnimMontage* Montage, const FName& SectionName);
 	virtual void PlayDodgeMontage(const FName& SectionName);
 	void StopAttackMontage();
 
@@ -124,7 +125,7 @@ protected:
 	float TimeInCombo;
 
 private:
-	void PlayMontageSection(UAnimMontage* Montage, const FName& SectionName);
+	
 	int32 PlayRandomMontageSection(UAnimMontage* Montage, const TArray<FName>& SectionNames);
 
 	UPROPERTY(EditAnywhere, Category = Combat)

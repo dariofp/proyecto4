@@ -235,7 +235,6 @@ void ABaseCharacter::SpawnLightningStrikeFromAnimation()
 
 void ABaseCharacter::SelectAttackMontageSection(UAnimMontage* Montage)
 {
-	GetWorldTimerManager().ClearTimer(TimerCombo);
 
 	if (PreviousMontage && PreviousMontage != Montage) {
 		AttackCount = 0;
@@ -246,15 +245,12 @@ void ABaseCharacter::SelectAttackMontageSection(UAnimMontage* Montage)
 	FName SectionName = FName("Attack");
 	if (AttackCount <= MaxCombo) 
 	{
-		GetWorldTimerManager().SetTimer(TimerCombo, this, &ABaseCharacter::ComboEnd, TimeInCombo, false);
-		
 		SectionName.SetNumber(AttackCount + 1);
 		PlayMontageSection(Montage, SectionName);
 	}
 	else 
 	{
 		ComboEnd();
-		GetWorldTimerManager().SetTimer(TimerCombo, this, &ABaseCharacter::ComboEnd, TimeInCombo, false);
 		SectionName.SetNumber(AttackCount + 1);
 		PlayMontageSection(Montage, SectionName);
 	}
