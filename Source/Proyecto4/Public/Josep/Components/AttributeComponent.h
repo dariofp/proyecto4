@@ -68,6 +68,9 @@ public:
 	void AddSouls(int32 NumberOfSouls);
 
 	UFUNCTION(BlueprintCallable, Category = "Character|Currency")
+	void UseSouls(int32 NumberOfSouls);
+
+	UFUNCTION(BlueprintCallable, Category = "Character|Currency")
 	void AddGold(int32 AmountOfGold);
 
 	FORCEINLINE void SetGold(int32 NumberOfGold) { Gold = NumberOfGold; }

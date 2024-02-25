@@ -21,6 +21,27 @@ class ASoul;
 class UAnimMontage;
 class UPlayerOverlay;
 
+USTRUCT(BlueprintType)
+struct FAbilityUnlockInfo
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString AbilityName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 SoulCost;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bIsUnlocked;
+
+	FAbilityUnlockInfo() : AbilityName(TEXT("")), SoulCost(0), bIsUnlocked(false) {}
+
+	FAbilityUnlockInfo(const FString& InName, const int32 InCost, const bool InIsUnlocked = false)
+		: AbilityName(InName), SoulCost(InCost), bIsUnlocked(InIsUnlocked) {}
+};
+
 UENUM(BlueprintType)
 enum class EDodgeDirection : uint8
 {
@@ -46,6 +67,15 @@ enum class ECurrentAttackType
 	Fire UMETA(DisplayName = "Fire"),
 	Lightning UMETA(DisplayName = "Lightning"),
 	Gravity UMETA(DisplayName = "Gravity")
+};
+
+UENUM(BlueprintType)
+enum class ERMBAction
+{
+	LightningAttack,
+	GravityAttack,
+	VitalAttack,
+	// Add more actions as needed
 };
 
 
@@ -167,6 +197,9 @@ protected:
 	UInputAction* EKeyAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
+	UInputAction* ChangeAttackAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
 	UInputAction* AttackAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
@@ -213,13 +246,16 @@ protected:
 	//void DodgeCombo(const FInputActionValue& Value);
 
 	/* Combat */
+	void ChangeRMBAction();
 	void Dash();
 	void CancelDash(EActionState State);
 	void OnAttackReleased();
 	void PerformRegularAttack();
 	void ReleasedChargedAttack();
 	void ExecuteChargedAttack();
-	void AttackMelee();
+	void AttackMeleeCombo();
+	void AttackMagicCombo();
+	void AttackCombo(ECurrentAttackType Type);
 	void EquipWeapon(/*AWeapon* WeaponEquipped*/);
 	virtual void AttackEnd() override;
 	virtual void DodgeEnd() override;
@@ -268,6 +304,9 @@ protected:
 	FVector DashTargetLocation;
 
 	void InitializeDashTimeline();
+
+	ERMBAction CurrentRMBAction = ERMBAction::LightningAttack;
+
 
 private:
 	bool IsUnoccupied();
@@ -336,6 +375,11 @@ private:
 	float LastInputTimeAttack = 0.0f;
 
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities")
+	TArray<FAbilityUnlockInfo> AbilitiesToUnlock;
+	UFUNCTION(BlueprintCallable)
+	void UnlockAbility(FString AbilityName);
+	bool IsAbilityUnlocked(FString AbilityName) const;
 	FORCEINLINE ECharacterState GetCharacterState() const { return CharacterState; }
 	FORCEINLINE EActionState GetActionState() const { return ActionState; }
 };

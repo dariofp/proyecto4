@@ -204,7 +204,7 @@ void ABaseCharacter::SpawnLightningStrikeFromAnimation()
 		FHitResult HitResult;
 		FCollisionQueryParams CollisionParams;
 
-		bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_Visibility, CollisionParams);
+		bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_GameTraceChannel1, CollisionParams);
 
 		if (bHit)
 		{

@@ -49,6 +49,13 @@ void UAttributeComponent::AddSouls(int32 NumberOfSouls)
 	Souls += NumberOfSouls;
 }
 
+void UAttributeComponent::UseSouls(int32 NumberOfSouls)
+{
+	if (NumberOfSouls > Souls) return;
+
+	Souls -= NumberOfSouls;
+}
+
 void UAttributeComponent::AddGold(int32 AmountOfGold)
 {
 	Gold += AmountOfGold;

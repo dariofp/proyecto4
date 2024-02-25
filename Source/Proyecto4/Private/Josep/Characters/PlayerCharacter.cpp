@@ -105,8 +105,9 @@ void APlayerCharacter::Tick(float DeltaTime)
 		{
 			CancelDash(EActionState::EAS_Unoccupied);
 		}
-		if (CanAttack())
+		if (CanAttack() || bCanAttack)
 		{
+			bCanAttack = false;
 			PerformRegularAttack();
 			bAttackInputBuffered = false;
 		}
@@ -143,18 +144,19 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Look);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Jump);
 		EnhancedInputComponent->BindAction(EKeyAction, ETriggerEvent::Triggered, this, &APlayerCharacter::EKeyPressed);
-		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &APlayerCharacter::AttackMelee);
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &APlayerCharacter::AttackMeleeCombo);
 		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Completed, this, &APlayerCharacter::Dash);
 		EnhancedInputComponent->BindAction(LockAction, ETriggerEvent::Completed, this, &APlayerCharacter::Lock);
 		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &APlayerCharacter::ToggleAimState);
 		EnhancedInputComponent->BindAction(ChangeTargetAction, ETriggerEvent::Triggered, this, &APlayerCharacter::SwitchTargetAxis);
-		EnhancedInputComponent->BindAction(AttackFireAction, ETriggerEvent::Started, this, &APlayerCharacter::StartCharging);
-		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Started, this, &APlayerCharacter::StartCharging);
-		EnhancedInputComponent->BindAction(AttackGravityAction, ETriggerEvent::Started, this, &APlayerCharacter::StartCharging);
+		EnhancedInputComponent->BindAction(ChangeAttackAction, ETriggerEvent::Started, this, &APlayerCharacter::ChangeRMBAction);
+		EnhancedInputComponent->BindAction(AttackFireAction, ETriggerEvent::Started, this, &APlayerCharacter::AttackMagicCombo);
+		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Started, this, &APlayerCharacter::AttackMagicCombo);
+		EnhancedInputComponent->BindAction(AttackGravityAction, ETriggerEvent::Started, this, &APlayerCharacter::AttackMagicCombo);
 
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Completed, this, &APlayerCharacter::OnAttackReleased);
 		EnhancedInputComponent->BindAction(AttackFireAction, ETriggerEvent::Completed, this, &APlayerCharacter::AttackFire);
-		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Completed, this, &APlayerCharacter::AttackLightning);
+		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Completed, this, &APlayerCharacter::OnAttackReleased);
 		EnhancedInputComponent->BindAction(AttackGravityAction, ETriggerEvent::Completed, this, &APlayerCharacter::AttackGravity);
 	}
 }
@@ -171,6 +173,22 @@ void APlayerCharacter::RevertMaterials()
 	GetMesh()->SetMaterialByName(FName("Baston_1"), InvisibleMaterial);
 	GetMesh()->SetMaterialByName(FName("Baston_2"), InvisibleMaterial);
 	GetMesh()->SetMaterialByName(FName("Baston_3"), InvisibleMaterial);
+}
+
+void APlayerCharacter::ChangeRMBAction()
+{
+	switch (CurrentRMBAction)
+	{
+	case ERMBAction::LightningAttack:
+		CurrentRMBAction = ERMBAction::GravityAttack;
+		break;
+	case ERMBAction::GravityAttack:
+		CurrentRMBAction = ERMBAction::VitalAttack;
+		break;
+	case ERMBAction::VitalAttack:
+		CurrentRMBAction = ERMBAction::LightningAttack;
+		break;
+	}
 }
 
 void APlayerCharacter::Dash()
@@ -197,7 +215,6 @@ void APlayerCharacter::Dash()
 
 	if (Direccion.IsNearlyZero())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("No input direction for dash."));
 		return;
 	}
 	
@@ -237,8 +254,6 @@ void APlayerCharacter::Dash()
 
 void APlayerCharacter::CancelDash(EActionState State)
 {
-	UE_LOG(LogTemp, Warning, TEXT("CancelingDash"));
-
 	if (DashTimeline != nullptr)
 	{
 		DashTimeline->Stop();
@@ -267,7 +282,6 @@ void APlayerCharacter::PerformRegularAttack()
 	switch (AttackType)
 	{
 	case ECurrentAttackType::Melee:
-		UE_LOG(LogTemp, Warning, TEXT("Executing Melee Regular Attack"));
 		Super::Attack();
 		FindAndSetClosestEnemyInSight();
 		SelectAttackMontageSection(MeleeMontage);
@@ -280,8 +294,10 @@ void APlayerCharacter::PerformRegularAttack()
 		break;
 	case ECurrentAttackType::Lightning:
 		SelectAttackMontageSection(LightningMontage);
-		Attributes->UseMana(Attributes->GetDodgeCost());
+		//Attributes->UseMana(Attributes->GetDodgeCost());
 		ActionState = EActionState::EAS_Melee;
+		return;
+		
 		break;
 	case ECurrentAttackType::Gravity:
 		SelectAttackMontageSection(GravityMontage);
@@ -306,7 +322,14 @@ void APlayerCharacter::ReleasedChargedAttack()
 		PlayMontageSection(FireMontage, "Release");
 		break;
 	case ECurrentAttackType::Lightning:
-		PlayMontageSection(LightningMontage, "Release");
+		if (IsAbilityUnlocked("ChargedLightning"))
+		{
+			PlayMontageSection(LightningMontage, "Release");
+		}
+		else 
+		{
+			PerformRegularAttack();
+		}
 		break;
 	case ECurrentAttackType::Gravity:
 		PlayMontageSection(GravityMontage, "Release");
@@ -332,7 +355,17 @@ void APlayerCharacter::ExecuteChargedAttack()
 		PlayMontageSection(FireMontage, "Charged");
 		break;
 	case ECurrentAttackType::Lightning:
-		PlayMontageSection(LightningMontage, "Charged");
+		if (IsAbilityUnlocked("ChargedLightning"))
+		{
+			Super::Attack();
+			bcanRotate = true;
+			PlayMontageSection(LightningMontage, "Charged");
+			ActionState = EActionState::EAS_Melee;
+		}
+		else
+		{
+			PerformRegularAttack();
+		}
 		break;
 	case ECurrentAttackType::Gravity:
 		PlayMontageSection(GravityMontage, "Charged");
@@ -342,17 +375,41 @@ void APlayerCharacter::ExecuteChargedAttack()
 	}
 }
 
-void APlayerCharacter::AttackMelee()
+void APlayerCharacter::AttackMeleeCombo()
+{
+	AttackCombo(ECurrentAttackType::Melee);
+
+}
+
+void APlayerCharacter::AttackMagicCombo() 
+{
+	switch (CurrentRMBAction)
+	{
+	case ERMBAction::LightningAttack:
+		AttackCombo(ECurrentAttackType::Lightning);
+		break;
+	case ERMBAction::GravityAttack:
+		AttackCombo(ECurrentAttackType::Melee);
+		break;
+	case ERMBAction::VitalAttack:
+		AttackCombo(ECurrentAttackType::Lightning);
+		break;
+	}
+}
+
+void APlayerCharacter::AttackCombo(ECurrentAttackType Type)
 {
 	Super::Attack();
+
+	AttackType = Type;
+
 	if (!bCanDash)
 	{
 		CancelDash(EActionState::EAS_Unoccupied);
 	}
 
-	if (!CanAttack()) {
-		UE_LOG(LogTemp, Warning, TEXT("StartBufferAttack"));
-
+	if (!CanAttack()) 
+	{
 		bAttackInputBuffered = true;
 		LastInputTimeAttack = GetWorld()->GetTimeSeconds();
 		return;
@@ -360,7 +417,6 @@ void APlayerCharacter::AttackMelee()
 
 	if (CanAttack() || bCanAttack)
 	{
-		AttackType = ECurrentAttackType::Melee;
 		StartCharging();
 		bCanAttack = false;
 	}
@@ -682,7 +738,6 @@ void APlayerCharacter::StartCharging()
 	//ChargeStartTime = GetWorld()->GetTimeSeconds();
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle_ChargeAttack, this, &APlayerCharacter::ExecuteChargedAttack, ChargeAttackThreshold, false);
 
-
 	//bIsCharging = true;
 
 	//GetWorld()->GetTimerManager().SetTimer(TimerHandle_ChargeAttack, this, &APlayerCharacter::ExecuteChargedAttack, 1.0f, false);
@@ -786,7 +841,7 @@ void APlayerCharacter::OrientTowards(AActor* Target)
 		SetActorRotation(NewRotation);
 	}
 }
-
+//Cambiar estasFunciones
 void APlayerCharacter::AttackFire()
 {
 	if (!HasEnoughMana()) return;
@@ -1073,4 +1128,29 @@ void APlayerCharacter::SetHUDHealth()
 	{
 		PlayerOverlay->SetHealthBarPercent(Attributes->GetHealthPercent());
 	}
+}
+
+void APlayerCharacter::UnlockAbility(FString AbilityName)
+{
+	for (FAbilityUnlockInfo& Ability : AbilitiesToUnlock)
+	{
+		if (Ability.AbilityName == AbilityName && !Ability.bIsUnlocked && Attributes->GetSouls() >= Ability.SoulCost)
+		{
+			Attributes->UseSouls(Ability.SoulCost);
+			Ability.bIsUnlocked = true;
+			break;
+		}
+	}
+}
+
+bool APlayerCharacter::IsAbilityUnlocked(FString AbilityName) const
+{
+	for (const FAbilityUnlockInfo& Ability : AbilitiesToUnlock)
+	{
+		if (Ability.AbilityName == AbilityName)
+		{
+			return Ability.bIsUnlocked;
+		}
+	}
+	return false;
 }
