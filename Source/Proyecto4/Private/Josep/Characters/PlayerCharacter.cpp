@@ -11,6 +11,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Josep/Components/AttributeComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 //#include "GroomVisualizationData.h"
@@ -49,6 +50,8 @@ APlayerCharacter::APlayerCharacter()
 	DetectionSphere->InitSphereRadius(300.0f);
 	DetectionSphere->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Overlap);
 
+	DashTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("DashTimeline"));
+
 	/*Hair = CreateDefaultSubobject<UGroomComponent>(TEXT("Hair"));
 	Hair->SetupAttachment(GetMesh());
 	Hair->AttachmentName = FString("head");
@@ -69,6 +72,48 @@ void APlayerCharacter::Tick(float DeltaTime)
 		PlayerOverlay->SetManaBarPercent(Attributes->GetManaPercent());
 	}
 
+	if (CombatTarget && bShouldOrientTowardsTarget)
+	{
+		OrientTowards(CombatTarget);
+
+		float DistanceToTarget = FVector::Distance(GetActorLocation(), CombatTarget->GetActorLocation());
+
+		if (DistanceToTarget > 200.0f)
+		{
+			FVector Direction = (CombatTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+
+			AddMovementInput(Direction, 1.0f);
+		}
+	}
+
+	if (bShouldMoveForward) {
+		AddMovementInput(GetActorForwardVector(), 1.0f);
+	}
+
+	if (bDashInputBuffered && (GetWorld()->GetTimeSeconds() - LastInputTimeDash) <= InputBufferTime)
+	{
+		if (bCanDash)
+		{
+			Dash();
+			bDashInputBuffered = false;
+		}
+	}
+
+	if (bAttackInputBuffered && (GetWorld()->GetTimeSeconds() - LastInputTimeAttack) <= InputBufferTime)
+	{
+		if (!bCanDash)
+		{
+			CancelDash(EActionState::EAS_Unoccupied);
+		}
+		if (CanAttack() || bCanAttack)
+		{
+			bCanAttack = false;
+			PerformRegularAttack();
+			bAttackInputBuffered = false;
+		}
+	}
+
+	/*
 	if (CombatTarget) 
 	{
 		FVector TargetLocation = CombatTarget->GetActorLocation();
@@ -82,17 +127,12 @@ void APlayerCharacter::Tick(float DeltaTime)
 	if (bIsCharging)
 	{
 		ChargeDuration += DeltaTime;
-		if (ChargeDuration >= MaxChargeDuration)
+		if (ChargeDuration >= 0.5f)
 		{
-			ChargeDuration = MaxChargeDuration;
+			ExecuteChargedAttack();
 		}
 	}
-
-	if (CharacterState == ECharacterState::ECS_EquippedMagicFire && ChargeDuration >= 0.5)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Termino..."));
-		CharacterState = ECharacterState::ECS_Charging;
-	}
+	*/
 }
 
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -104,21 +144,284 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Look);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Jump);
 		EnhancedInputComponent->BindAction(EKeyAction, ETriggerEvent::Triggered, this, &APlayerCharacter::EKeyPressed);
-		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &APlayerCharacter::StartCharging);
-		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Dodge);
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &APlayerCharacter::AttackMeleeCombo);
+		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Completed, this, &APlayerCharacter::Dash);
 		EnhancedInputComponent->BindAction(LockAction, ETriggerEvent::Completed, this, &APlayerCharacter::Lock);
 		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &APlayerCharacter::ToggleAimState);
 		EnhancedInputComponent->BindAction(ChangeTargetAction, ETriggerEvent::Triggered, this, &APlayerCharacter::SwitchTargetAxis);
-		EnhancedInputComponent->BindAction(AttackFireAction, ETriggerEvent::Started, this, &APlayerCharacter::StartCharging);
-		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Started, this, &APlayerCharacter::StartCharging);
-		EnhancedInputComponent->BindAction(AttackGravityAction, ETriggerEvent::Started, this, &APlayerCharacter::StartCharging);
+		EnhancedInputComponent->BindAction(ChangeAttackAction, ETriggerEvent::Started, this, &APlayerCharacter::ChangeRMBAction);
+		EnhancedInputComponent->BindAction(AttackFireAction, ETriggerEvent::Started, this, &APlayerCharacter::AttackMagicCombo);
+		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Started, this, &APlayerCharacter::AttackMagicCombo);
+		EnhancedInputComponent->BindAction(AttackGravityAction, ETriggerEvent::Started, this, &APlayerCharacter::AttackMagicCombo);
 
-		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Completed, this, &APlayerCharacter::Attack);
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Completed, this, &APlayerCharacter::OnAttackReleased);
 		EnhancedInputComponent->BindAction(AttackFireAction, ETriggerEvent::Completed, this, &APlayerCharacter::AttackFire);
-		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Completed, this, &APlayerCharacter::AttackLightning);
+		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Completed, this, &APlayerCharacter::OnAttackReleased);
 		EnhancedInputComponent->BindAction(AttackGravityAction, ETriggerEvent::Completed, this, &APlayerCharacter::AttackGravity);
 	}
 }
+
+void APlayerCharacter::ChangeAttackMaterials()
+{
+	GetMesh()->SetMaterialByName(FName("Baston_1"), AttackMaterial1);
+	GetMesh()->SetMaterialByName(FName("Baston_2"), AttackMaterial2);
+	GetMesh()->SetMaterialByName(FName("Baston_3"), AttackMaterial3);
+}
+
+void APlayerCharacter::RevertMaterials()
+{
+	GetMesh()->SetMaterialByName(FName("Baston_1"), InvisibleMaterial);
+	GetMesh()->SetMaterialByName(FName("Baston_2"), InvisibleMaterial);
+	GetMesh()->SetMaterialByName(FName("Baston_3"), InvisibleMaterial);
+}
+
+void APlayerCharacter::ChangeRMBAction()
+{
+	switch (CurrentRMBAction)
+	{
+	case ERMBAction::LightningAttack:
+		CurrentRMBAction = ERMBAction::GravityAttack;
+		break;
+	case ERMBAction::GravityAttack:
+		CurrentRMBAction = ERMBAction::VitalAttack;
+		break;
+	case ERMBAction::VitalAttack:
+		CurrentRMBAction = ERMBAction::LightningAttack;
+		break;
+	}
+}
+
+void APlayerCharacter::Dash()
+{
+	if (IsOccupied() && !bCanDodge || !HasEnoughMana() || !GetCharacterMovement()->IsMovingOnGround() || DashTimeline->IsPlaying()) {
+		bDashInputBuffered = true;
+		LastInputTimeDash = GetWorld()->GetTimeSeconds();
+		return;
+	}
+
+	if (bIsCharging) {
+		bIsCharging = false;
+		FinAim();
+	}
+	
+
+	if (bCanDodge)
+	{
+		bCanDodge = false;
+		ComboEnd();
+		StopAnimMontage();
+		RevertMaterials();
+	}
+
+	if (Direccion.IsNearlyZero())
+	{
+		return;
+	}
+	
+	ActionState = EActionState::EAS_Dodge;
+
+	FVector CameraForward = UKismetMathLibrary::GetForwardVector(GetControlRotation());
+	FVector CameraRight = UKismetMathLibrary::GetRightVector(GetControlRotation());
+	CameraForward.Z = 0;
+	CameraRight.Z = 0;
+	CameraForward.Normalize();
+	CameraRight.Normalize();
+
+	FVector WorldDirection = CameraForward * Direccion.Y + CameraRight * Direccion.X;
+	FVector DashDirection = WorldDirection.GetSafeNormal();
+	DashStartLocation = GetActorLocation();
+	DashTargetLocation = DashStartLocation + DashDirection * DashDistance;
+
+	FHitResult SweepResult;
+	FVector SweepStart = DashStartLocation;
+	FVector SweepEnd = DashTargetLocation;
+
+	FCollisionShape CollisionShape = FCollisionShape::MakeCapsule(GetCapsuleComponent()->GetScaledCapsuleRadius(), GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+	bool bWillCollide = GetWorld()->SweepSingleByChannel(SweepResult, SweepStart, SweepEnd, FQuat::Identity, ECC_GameTraceChannel2, CollisionShape);
+
+	if (bWillCollide && SweepResult.bBlockingHit)
+	{
+		DashTargetLocation = SweepResult.Location;
+		DashDistance = (SweepResult.Location - DashStartLocation).Size();
+	}
+
+	SetActorRotation(DashDirection.Rotation());
+
+	PlayDodgeMontage("DodgeNormal");
+
+	DashTimeline->PlayFromStart();
+}
+
+void APlayerCharacter::CancelDash(EActionState State)
+{
+	if (DashTimeline != nullptr)
+	{
+		DashTimeline->Stop();
+	}
+	bCanDash = true;
+	ActionState = State;
+}
+
+void APlayerCharacter::OnAttackReleased()
+{
+	if (GetWorld()->GetTimerManager().IsTimerActive(TimerHandle_ChargeAttack))
+	{
+		GetWorld()->GetTimerManager().ClearTimer(TimerHandle_ChargeAttack);
+		if(CanAttack() || ActionState == EActionState::EAS_Melee){ PerformRegularAttack(); }
+	}
+	else if(bIsCharging && AttackType != ECurrentAttackType::None)
+	{
+		ReleasedChargedAttack();
+	}
+	bIsCharging = false;
+	//GetWorld()->GetTimerManager().ClearTimer(TimerHandle_ChargeAttack);
+}
+
+void APlayerCharacter::PerformRegularAttack() 
+{
+	switch (AttackType)
+	{
+	case ECurrentAttackType::Melee:
+		Super::Attack();
+		FindAndSetClosestEnemyInSight();
+		SelectAttackMontageSection(MeleeMontage);
+		ActionState = EActionState::EAS_Melee;
+		break;
+	case ECurrentAttackType::Fire:
+		SelectAttackMontageSection(FireMontage);
+		Attributes->UseMana(Attributes->GetDodgeCost());
+		ActionState = EActionState::EAS_Melee;
+		break;
+	case ECurrentAttackType::Lightning:
+		SelectAttackMontageSection(LightningMontage);
+		//Attributes->UseMana(Attributes->GetDodgeCost());
+		ActionState = EActionState::EAS_Melee;
+		return;
+		
+		break;
+	case ECurrentAttackType::Gravity:
+		SelectAttackMontageSection(GravityMontage);
+		Attributes->UseMana(Attributes->GetDodgeCost());
+		ActionState = EActionState::EAS_Melee;
+		break;
+	default:
+		// Handle default case or log an error
+		break;
+	}
+}
+
+void APlayerCharacter::ReleasedChargedAttack() 
+{
+	switch (AttackType)
+	{
+	case ECurrentAttackType::Melee:
+		PlayMontageSection(MeleeMontage, "Release");
+		ActionState = EActionState::EAS_Melee;
+		break;
+	case ECurrentAttackType::Fire:
+		PlayMontageSection(FireMontage, "Release");
+		break;
+	case ECurrentAttackType::Lightning:
+		if (IsAbilityUnlocked("ChargedLightning"))
+		{
+			PlayMontageSection(LightningMontage, "Release");
+		}
+		else 
+		{
+			PerformRegularAttack();
+		}
+		break;
+	case ECurrentAttackType::Gravity:
+		PlayMontageSection(GravityMontage, "Release");
+		break;
+	default:
+		// Handle default case or log an error
+		break;
+	}
+}
+
+
+void APlayerCharacter::ExecuteChargedAttack()
+{
+	switch (AttackType)
+	{
+	case ECurrentAttackType::Melee:
+		Super::Attack();
+		bcanRotate = true;
+		PlayMontageSection(MeleeMontage, "Charged");
+		ActionState = EActionState::EAS_Melee;
+		break;
+	case ECurrentAttackType::Fire:
+		PlayMontageSection(FireMontage, "Charged");
+		break;
+	case ECurrentAttackType::Lightning:
+		if (IsAbilityUnlocked("ChargedLightning"))
+		{
+			Super::Attack();
+			bcanRotate = true;
+			PlayMontageSection(LightningMontage, "Charged");
+			ActionState = EActionState::EAS_Melee;
+		}
+		else
+		{
+			PerformRegularAttack();
+		}
+		break;
+	case ECurrentAttackType::Gravity:
+		PlayMontageSection(GravityMontage, "Charged");
+		break;
+	default:
+		break;
+	}
+}
+
+void APlayerCharacter::AttackMeleeCombo()
+{
+	AttackCombo(ECurrentAttackType::Melee);
+
+}
+
+void APlayerCharacter::AttackMagicCombo() 
+{
+	switch (CurrentRMBAction)
+	{
+	case ERMBAction::LightningAttack:
+		AttackCombo(ECurrentAttackType::Lightning);
+		break;
+	case ERMBAction::GravityAttack:
+		AttackCombo(ECurrentAttackType::Melee);
+		break;
+	case ERMBAction::VitalAttack:
+		AttackCombo(ECurrentAttackType::Lightning);
+		break;
+	}
+}
+
+void APlayerCharacter::AttackCombo(ECurrentAttackType Type)
+{
+	Super::Attack();
+
+	AttackType = Type;
+
+	if (!bCanDash)
+	{
+		CancelDash(EActionState::EAS_Unoccupied);
+	}
+
+	if (!CanAttack()) 
+	{
+		bAttackInputBuffered = true;
+		LastInputTimeAttack = GetWorld()->GetTimeSeconds();
+		return;
+	}
+
+	if (CanAttack() || bCanAttack)
+	{
+		StartCharging();
+		bCanAttack = false;
+	}
+}
+
 void APlayerCharacter::Jump()
 {
 	if (IsUnoccupied())
@@ -129,16 +432,13 @@ void APlayerCharacter::Jump()
 
 void APlayerCharacter::ToggleAimState()
 {
-	// Toggle between aiming and idle state
 	if (ActionState == EActionState::EAS_Unoccupied)
 	{
 		ActionState = EActionState::EAS_Aiming;
-		// Additional logic for entering aim state (e.g., adjusting camera, UI, etc.)
 	}
 	else if (CharacterState == ECharacterState::ECS_EquippedMagicFire)
 	{
 		ActionState = EActionState::EAS_Unoccupied;
-		// Additional logic for exiting aim state (e.g., resetting camera, UI, etc.)
 	}
 }
 
@@ -183,6 +483,33 @@ void APlayerCharacter::AddGold(int32 GoldAdded)
 	}
 }
 
+void APlayerCharacter::DashTick(float Value)
+{
+	FVector NewLocation = FMath::Lerp(DashStartLocation, DashTargetLocation, Value);
+    SetActorLocation(NewLocation, true);
+	DrawDebugLine(GetWorld(), DashStartLocation, DashTargetLocation, FColor::Green, false, 5.0f, 0, 1.0f);
+	DrawDebugCapsule(GetWorld(), GetActorLocation(), GetCapsuleComponent()->GetScaledCapsuleHalfHeight(), GetCapsuleComponent()->GetScaledCapsuleRadius(), GetActorRotation().Quaternion(), FColor::Red, false, 5.0f);
+
+}
+
+void APlayerCharacter::SetAttackToNone()
+{
+	AttackType = ECurrentAttackType::None;
+}
+
+void APlayerCharacter::FinAim_Implementation()
+{
+}
+
+void APlayerCharacter::MoveForward(float ScaleValue)
+{
+	const FRotator Rotation = Controller->GetControlRotation();
+	const FRotator YawRotation(0, Rotation.Yaw, 0);
+
+	const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+	AddMovementInput(Direction, ScaleValue);
+}
+
 void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -191,6 +518,7 @@ void APlayerCharacter::BeginPlay()
 	DetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &APlayerCharacter::OnSphereOverlap);
 	DetectionSphere->OnComponentEndOverlap.AddDynamic(this, &APlayerCharacter::OnSphereEndOverlap);
 	EquipWeapon();
+	InitializeDashTimeline();
 }
 
 void APlayerCharacter::SwitchTargetAxis(const FInputActionValue& AxisValue)
@@ -217,7 +545,6 @@ void APlayerCharacter::EnableTrigger()
 
 void APlayerCharacter::ChangeTargetByDirection(ETargetSwitchDirection SwitchDirection)
 {
-	// Determine the direction of target switching
 	bool bSwitchLeft = (SwitchDirection == ETargetSwitchDirection::Left);
 
 	LockOn(bSwitchLeft);
@@ -334,16 +661,22 @@ void APlayerCharacter::OnSphereEndOverlap(UPrimitiveComponent* OverlappedCompone
 void APlayerCharacter::Move(const FInputActionValue& Value)
 {
 	const FVector2D MovementVector = Value.Get<FVector2D>();
-
+	if (!bCanDash && !MovementVector.IsNearlyZero() && ActionState != EActionState::EAS_Melee)
+	{
+		StopAnimMontage();
+		CancelDash(EActionState::EAS_Unoccupied);
+	}
 	const FRotator CameraRotation = Controller->GetControlRotation();
 	const FRotator YawRotation(0.f, CameraRotation.Yaw, 0.f);
-
+	/*
 	if (bCanAttack)
 	{
 		ActionState = EActionState::EAS_Unoccupied;
 		bCanAttack = false;
+		ComboEnd();
 		StopAnimMontage();
-	}
+		RevertMaterials();
+	}*/
 
 	if (ActionState == EActionState::EAS_Unoccupied)
 	{
@@ -373,13 +706,10 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 
 void APlayerCharacter::Look(const FInputActionValue& Value)
 {
-	if (!CombatTarget) 
-	{
-		const FVector2D LookAxisVector = Value.Get<FVector2D>();
+	const FVector2D LookAxisVector = Value.Get<FVector2D>();
 
-		AddControllerPitchInput(LookAxisVector.Y);
-		AddControllerYawInput(LookAxisVector.X);
-	}
+	AddControllerPitchInput(LookAxisVector.Y);
+	AddControllerYawInput(LookAxisVector.X);
 }
 
 void APlayerCharacter::EKeyPressed()
@@ -405,22 +735,31 @@ void APlayerCharacter::EKeyPressed()
 void APlayerCharacter::StartCharging()
 {
 	bIsCharging = true;
-	ChargeDuration = 0.0f;
-	// Start charging animation or effects if needed
+	//ChargeStartTime = GetWorld()->GetTimeSeconds();
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle_ChargeAttack, this, &APlayerCharacter::ExecuteChargedAttack, ChargeAttackThreshold, false);
+
+	//bIsCharging = true;
+
+	//GetWorld()->GetTimerManager().SetTimer(TimerHandle_ChargeAttack, this, &APlayerCharacter::ExecuteChargedAttack, 1.0f, false);
 }
 
 void APlayerCharacter::StopCharging()
 {
+	//ChargeDuration = 0.0f;
 	bIsCharging = false;
 }
-
+/*
 void APlayerCharacter::ExecuteChargedAttack()
 {
 	Super::Attack();
-	if (ChargeDuration >= MaxChargeDuration)
-	{
+	if (GetWorld()->GetTimerManager().IsTimerActive(TimerHandle_ChargeAttack))
+    {
+        // The button was released before the charged attack could execute, so clear the timer
+        GetWorld()->GetTimerManager().ClearTimer(TimerHandle_ChargeAttack);
 
-	}
+        // Execute regular attack since it was released before 0.5 seconds
+        PerformRegularAttack();
+    }
 	else
 	{
 		if (CanAttack())
@@ -433,14 +772,12 @@ void APlayerCharacter::ExecuteChargedAttack()
 
 	StopCharging();
 }
-
+*/
 void APlayerCharacter::Attack()
 {
 	Super::Attack();
-	if (!CombatTarget)
-	{
-		FindAndSetClosestEnemyInSight();
-	}
+
+	FindAndSetClosestEnemyInSight();
 
 	if (CanAttack() || bCanAttack)
 	{
@@ -452,7 +789,7 @@ void APlayerCharacter::Attack()
 
 void APlayerCharacter::FindAndSetClosestEnemyInSight()
 {
-	if (EnemiesInRange.Num() == 0) return; // Early exit if no enemies in range
+	if (EnemiesInRange.Num() == 0) return;
 
 	AActor* ClosestEnemy = nullptr;
 	float ClosestDistanceSq = FLT_MAX;
@@ -465,11 +802,9 @@ void APlayerCharacter::FindAndSetClosestEnemyInSight()
 		float DistanceSq = DirectionToEnemy.SizeSquared();
 		DirectionToEnemy.Normalize();
 
-		// Calculate the angle between the player's forward vector and the direction to the enemy
 		float DotProduct = FVector::DotProduct(ForwardVector, DirectionToEnemy);
 		float Angle = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
 
-		// Only consider enemies within a 45-degree angle in front of the player
 		if (Angle <= 120.0f)
 		{
 			if (DistanceSq < ClosestDistanceSq)
@@ -480,10 +815,10 @@ void APlayerCharacter::FindAndSetClosestEnemyInSight()
 		}
 	}
 
-	CombatTarget = ClosestEnemy; // May be nullptr if no suitable target found
-	if (CombatTarget)
+	CombatTarget = ClosestEnemy;
+	if (CombatTarget) 
 	{
-		OrientTowards(CombatTarget);
+		bShouldOrientTowardsTarget = true;
 	}
 }
 
@@ -491,11 +826,22 @@ void APlayerCharacter::OrientTowards(AActor* Target)
 {
 	if (Target)
 	{
-		FRotator TargetRotation = (Target->GetActorLocation() - GetActorLocation()).Rotation();
-		SetActorRotation(TargetRotation);
+		FVector TargetLocation = Target->GetActorLocation();
+		FVector MyLocation = GetActorLocation();
+		FRotator CurrentRotation = GetActorRotation();
+
+		FRotator TargetRotation = (TargetLocation - MyLocation).Rotation();
+		TargetRotation.Pitch = CurrentRotation.Pitch;
+		TargetRotation.Roll = CurrentRotation.Roll;
+
+		float DeltaTime = GetWorld()->GetDeltaSeconds();
+		float InterpSpeed = 10.0f;
+		FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, InterpSpeed);
+
+		SetActorRotation(NewRotation);
 	}
 }
-
+//Cambiar estasFunciones
 void APlayerCharacter::AttackFire()
 {
 	if (!HasEnoughMana()) return;
@@ -737,6 +1083,16 @@ void APlayerCharacter::HitReactEnd()
 	ActionState = EActionState::EAS_Unoccupied;
 }
 
+void APlayerCharacter::InitializeDashTimeline()
+{
+	if (DashCurve)
+	{
+		FOnTimelineFloat TimelineProgress;
+		TimelineProgress.BindUFunction(this, FName("DashTick"));
+		DashTimeline->AddInterpFloat(DashCurve, TimelineProgress);
+	}
+}
+
 bool APlayerCharacter::IsUnoccupied()
 {
 	return ActionState == EActionState::EAS_Unoccupied;
@@ -772,4 +1128,29 @@ void APlayerCharacter::SetHUDHealth()
 	{
 		PlayerOverlay->SetHealthBarPercent(Attributes->GetHealthPercent());
 	}
+}
+
+void APlayerCharacter::UnlockAbility(FString AbilityName)
+{
+	for (FAbilityUnlockInfo& Ability : AbilitiesToUnlock)
+	{
+		if (Ability.AbilityName == AbilityName && !Ability.bIsUnlocked && Attributes->GetSouls() >= Ability.SoulCost)
+		{
+			Attributes->UseSouls(Ability.SoulCost);
+			Ability.bIsUnlocked = true;
+			break;
+		}
+	}
+}
+
+bool APlayerCharacter::IsAbilityUnlocked(FString AbilityName) const
+{
+	for (const FAbilityUnlockInfo& Ability : AbilitiesToUnlock)
+	{
+		if (Ability.AbilityName == AbilityName)
+		{
+			return Ability.bIsUnlocked;
+		}
+	}
+	return false;
 }

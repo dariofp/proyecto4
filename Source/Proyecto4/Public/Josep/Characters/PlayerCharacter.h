@@ -7,6 +7,7 @@
 #include "InputActionValue.h"
 #include "CharacterTypes.h"
 #include "Josep/Interfaces/PickupInterface.h"
+#include "Components/TimelineComponent.h"
 #include "PlayerCharacter.generated.h"
 
 class UInputMappingContext;
@@ -19,6 +20,27 @@ class ASoul;
 //class UGroomComponent;
 class UAnimMontage;
 class UPlayerOverlay;
+
+USTRUCT(BlueprintType)
+struct FAbilityUnlockInfo
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString AbilityName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 SoulCost;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bIsUnlocked;
+
+	FAbilityUnlockInfo() : AbilityName(TEXT("")), SoulCost(0), bIsUnlocked(false) {}
+
+	FAbilityUnlockInfo(const FString& InName, const int32 InCost, const bool InIsUnlocked = false)
+		: AbilityName(InName), SoulCost(InCost), bIsUnlocked(InIsUnlocked) {}
+};
 
 UENUM(BlueprintType)
 enum class EDodgeDirection : uint8
@@ -37,6 +59,26 @@ enum class ETargetSwitchDirection
 	Right
 };
 
+UENUM(BlueprintType)
+enum class ECurrentAttackType
+{
+	None UMETA(DisplayName = "None"),
+	Melee UMETA(DisplayName = "Melee"),
+	Fire UMETA(DisplayName = "Fire"),
+	Lightning UMETA(DisplayName = "Lightning"),
+	Gravity UMETA(DisplayName = "Gravity")
+};
+
+UENUM(BlueprintType)
+enum class ERMBAction
+{
+	LightningAttack,
+	GravityAttack,
+	VitalAttack,
+	// Add more actions as needed
+};
+
+
 UCLASS()
 class PROYECTO4_API APlayerCharacter : public ABaseCharacter, public IPickupInterface
 {
@@ -46,6 +88,10 @@ public:
 	APlayerCharacter();
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	UFUNCTION(BlueprintCallable, Category = "Materials")
+	void ChangeAttackMaterials();
+	UFUNCTION(BlueprintCallable, Category = "Materials")
+	void RevertMaterials();
 	virtual void Jump() override;
 
 	void ToggleAimState();
@@ -70,9 +116,51 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsCharging = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bCanAttack = false;
+	bool bCanAttack = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bCanDodge = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bCanDash = true;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bcanRotate = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bShouldOrientTowardsTarget = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bShouldMoveForward = false;
+	float ChargeStartTime = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+	float DashDistance = 600.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float InputBufferTime = 0.5f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Dash")
+	UTimelineComponent* DashTimeline;
+
+	UFUNCTION()
+	void DashTick(float Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Attack")
+	void SetAttackToNone();
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Attack")
+	void FinAim();
+	virtual void FinAim_Implementation();
+
+	UFUNCTION(BlueprintCallable, Category = "Attack")
+	void MoveForward(float ScaleValue);
+
+	UPROPERTY(EditDefaultsOnly, Category = "Materials")
+	UMaterialInterface* AttackMaterial1;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Materials")
+	UMaterialInterface* AttackMaterial2;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Materials")
+	UMaterialInterface* AttackMaterial3;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Materials")
+	UMaterialInterface* InvisibleMaterial;
 
 protected:
 	virtual void BeginPlay() override;
@@ -107,6 +195,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
 	UInputAction* EKeyAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
+	UInputAction* ChangeAttackAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input);
 	UInputAction* AttackAction;
@@ -144,7 +235,6 @@ protected:
 	void EKeyPressed();
 	void StartCharging();
 	void StopCharging();
-	void ExecuteChargedAttack();
 	virtual void Attack() override;
 	void FindAndSetClosestEnemyInSight();
 	void OrientTowards(AActor* Target);
@@ -156,6 +246,16 @@ protected:
 	//void DodgeCombo(const FInputActionValue& Value);
 
 	/* Combat */
+	void ChangeRMBAction();
+	void Dash();
+	void CancelDash(EActionState State);
+	void OnAttackReleased();
+	void PerformRegularAttack();
+	void ReleasedChargedAttack();
+	void ExecuteChargedAttack();
+	void AttackMeleeCombo();
+	void AttackMagicCombo();
+	void AttackCombo(ECurrentAttackType Type);
 	void EquipWeapon(/*AWeapon* WeaponEquipped*/);
 	virtual void AttackEnd() override;
 	virtual void DodgeEnd() override;
@@ -188,16 +288,33 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	EDodgeDirection DodgeDirection;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	ECurrentAttackType AttackType;
+
 	bool bIsTargeting = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TArray<AActor*> EnemiesInRange;
+
+	UPROPERTY(EditAnywhere, Category = "Dash")
+	UCurveFloat* DashCurve;
+
+	FVector DashStartLocation;
+
+	FVector DashTargetLocation;
+
+	void InitializeDashTimeline();
+
+	ERMBAction CurrentRMBAction = ERMBAction::LightningAttack;
+
 
 private:
 	bool IsUnoccupied();
 	void InitializePlayerOverlay();
 	void SetHUDHealth();
 	FVector2D Direccion;
+	FVector DireccionMov;
+
 	/* Character components */
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
@@ -239,16 +356,30 @@ private:
 
 	bool bCanTrigger = true;
 	const float TriggerCooldown = 0.5f; // Set your desired cooldown time here
+	const float ChargeAttackThreshold = 0.5f; // Seconds
+
 	FTimerHandle TimerHandle_TriggerCooldown;
+	FTimerHandle TimerHandle_ChargeAttack;
 
 	
-	float ChargeDuration = 0.0f;
+	//float ChargeDuration = 0.0f;
 	const float MaxChargeDuration = 2.0f;
 
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<class AWeapon> WeaponClass;
 
+	/*-------------------------<Input Buffering>---------------------------------------*/
+	bool bDashInputBuffered = false;
+	bool bAttackInputBuffered = false;
+	float LastInputTimeDash = 0.0f;
+	float LastInputTimeAttack = 0.0f;
+
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities")
+	TArray<FAbilityUnlockInfo> AbilitiesToUnlock;
+	UFUNCTION(BlueprintCallable)
+	void UnlockAbility(FString AbilityName);
+	bool IsAbilityUnlocked(FString AbilityName) const;
 	FORCEINLINE ECharacterState GetCharacterState() const { return CharacterState; }
 	FORCEINLINE EActionState GetActionState() const { return ActionState; }
 };
