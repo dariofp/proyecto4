@@ -56,6 +56,8 @@ APlayerCharacter::APlayerCharacter()
 	Eyebrows = CreateDefaultSubobject<UGroomComponent>(TEXT("Eyebrows"));
 	Eyebrows->SetupAttachment(GetMesh());
 	Eyebrows->AttachmentName = FString("head");*/
+	//Weapon = CreateDefaultSubobject<AWeapon>(TEXT("WeaponCharacter"));
+	//DetectionSphere->SetupAttachment(GetRootComponent());
 }
 
 void APlayerCharacter::Tick(float DeltaTime)
@@ -76,6 +78,21 @@ void APlayerCharacter::Tick(float DeltaTime)
 		FRotator NewControlRotation = FRotator(-10, AimingTargetRotation.Yaw, 0);
 		GetController()->SetControlRotation(NewControlRotation);
 	}
+
+	if (bIsCharging)
+	{
+		ChargeDuration += DeltaTime;
+		if (ChargeDuration >= MaxChargeDuration)
+		{
+			ChargeDuration = MaxChargeDuration;
+		}
+	}
+
+	if (CharacterState == ECharacterState::ECS_EquippedMagicFire && ChargeDuration >= 0.5)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Termino..."));
+		CharacterState = ECharacterState::ECS_Charging;
+	}
 }
 
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -87,15 +104,19 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Look);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Jump);
 		EnhancedInputComponent->BindAction(EKeyAction, ETriggerEvent::Triggered, this, &APlayerCharacter::EKeyPressed);
-		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Attack);
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &APlayerCharacter::StartCharging);
 		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Dodge);
 		EnhancedInputComponent->BindAction(LockAction, ETriggerEvent::Completed, this, &APlayerCharacter::Lock);
 		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &APlayerCharacter::ToggleAimState);
 		EnhancedInputComponent->BindAction(ChangeTargetAction, ETriggerEvent::Triggered, this, &APlayerCharacter::SwitchTargetAxis);
-		EnhancedInputComponent->BindAction(AttackFireAction, ETriggerEvent::Triggered, this, &APlayerCharacter::AttackFire);
-		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Triggered, this, &APlayerCharacter::AttackLightning);
-		EnhancedInputComponent->BindAction(AttackGravityAction, ETriggerEvent::Triggered, this, &APlayerCharacter::AttackGravity);
-		//EnhancedInputComponent->BindAction(DodgeComboAction, ETriggerEvent::Triggered, this, &APlayerCharacter::DodgeCombo);
+		EnhancedInputComponent->BindAction(AttackFireAction, ETriggerEvent::Started, this, &APlayerCharacter::StartCharging);
+		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Started, this, &APlayerCharacter::StartCharging);
+		EnhancedInputComponent->BindAction(AttackGravityAction, ETriggerEvent::Started, this, &APlayerCharacter::StartCharging);
+
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Completed, this, &APlayerCharacter::Attack);
+		EnhancedInputComponent->BindAction(AttackFireAction, ETriggerEvent::Completed, this, &APlayerCharacter::AttackFire);
+		EnhancedInputComponent->BindAction(AttackLightningAction, ETriggerEvent::Completed, this, &APlayerCharacter::AttackLightning);
+		EnhancedInputComponent->BindAction(AttackGravityAction, ETriggerEvent::Completed, this, &APlayerCharacter::AttackGravity);
 	}
 }
 void APlayerCharacter::Jump()
@@ -169,6 +190,7 @@ void APlayerCharacter::BeginPlay()
 	InitializePlayerOverlay();
 	DetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &APlayerCharacter::OnSphereOverlap);
 	DetectionSphere->OnComponentEndOverlap.AddDynamic(this, &APlayerCharacter::OnSphereEndOverlap);
+	EquipWeapon();
 }
 
 void APlayerCharacter::SwitchTargetAxis(const FInputActionValue& AxisValue)
@@ -311,19 +333,42 @@ void APlayerCharacter::OnSphereEndOverlap(UPrimitiveComponent* OverlappedCompone
 
 void APlayerCharacter::Move(const FInputActionValue& Value)
 {
-	if (ActionState != EActionState::EAS_Unoccupied) return;
 	const FVector2D MovementVector = Value.Get<FVector2D>();
 
-	const FRotator Rotation = Controller->GetControlRotation();
+	const FRotator CameraRotation = Controller->GetControlRotation();
+	const FRotator YawRotation(0.f, CameraRotation.Yaw, 0.f);
 
-	const FRotator YawRotation(0.f, Rotation.Yaw, 0.f);
-	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-	AddMovementInput(ForwardDirection, MovementVector.Y);
+	if (bCanAttack)
+	{
+		ActionState = EActionState::EAS_Unoccupied;
+		bCanAttack = false;
+		StopAnimMontage();
+	}
 
-	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-	AddMovementInput(RightDirection, MovementVector.X);
+	if (ActionState == EActionState::EAS_Unoccupied)
+	{
+		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+		AddMovementInput(ForwardDirection, MovementVector.Y);
 
-	Direccion = MovementVector;
+		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		AddMovementInput(RightDirection, MovementVector.X);
+
+		Direccion = MovementVector;
+	}
+
+	if (bcanRotate && !MovementVector.IsNearlyZero() || ActionState == EActionState::EAS_Unoccupied)
+	{
+		const FVector WorldMovementDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X) * MovementVector.Y +
+			FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y) * MovementVector.X;
+
+		FRotator DesiredRotation = FRotationMatrix::MakeFromX(WorldMovementDirection).Rotator();
+
+		float DeltaTime = GetWorld()->GetDeltaSeconds();
+		float RotationSpeed = 10.0f;
+		FRotator SmoothRotation = FMath::RInterpTo(GetActorRotation(), DesiredRotation, DeltaTime, RotationSpeed);
+
+		SetActorRotation(SmoothRotation);
+	}
 }
 
 void APlayerCharacter::Look(const FInputActionValue& Value)
@@ -342,7 +387,7 @@ void APlayerCharacter::EKeyPressed()
 	AWeapon* OverlappingWeapon = Cast<AWeapon>(OverlappingItem);
 	if (OverlappingWeapon)
 	{
-		EquipWeapon(OverlappingWeapon);
+		EquipWeapon();
 	}
 	else
 	{
@@ -357,13 +402,97 @@ void APlayerCharacter::EKeyPressed()
 	}
 }
 
+void APlayerCharacter::StartCharging()
+{
+	bIsCharging = true;
+	ChargeDuration = 0.0f;
+	// Start charging animation or effects if needed
+}
+
+void APlayerCharacter::StopCharging()
+{
+	bIsCharging = false;
+}
+
+void APlayerCharacter::ExecuteChargedAttack()
+{
+	Super::Attack();
+	if (ChargeDuration >= MaxChargeDuration)
+	{
+
+	}
+	else
+	{
+		if (CanAttack())
+		{
+			SelectAttackMontageSection(FireMontage);
+			Attributes->UseMana(Attributes->GetDodgeCost());
+			ActionState = EActionState::EAS_Melee;
+		}
+	}
+
+	StopCharging();
+}
+
 void APlayerCharacter::Attack()
 {
 	Super::Attack();
-	if (CanAttack())
+	if (!CombatTarget)
 	{
+		FindAndSetClosestEnemyInSight();
+	}
+
+	if (CanAttack() || bCanAttack)
+	{
+		bCanAttack = false;
 		SelectAttackMontageSection(MeleeMontage);
 		ActionState = EActionState::EAS_Melee;
+	}
+}
+
+void APlayerCharacter::FindAndSetClosestEnemyInSight()
+{
+	if (EnemiesInRange.Num() == 0) return; // Early exit if no enemies in range
+
+	AActor* ClosestEnemy = nullptr;
+	float ClosestDistanceSq = FLT_MAX;
+	FVector MyLocation = GetActorLocation();
+	FVector ForwardVector = GetActorForwardVector();
+
+	for (AActor* Enemy : EnemiesInRange)
+	{
+		FVector DirectionToEnemy = Enemy->GetActorLocation() - MyLocation;
+		float DistanceSq = DirectionToEnemy.SizeSquared();
+		DirectionToEnemy.Normalize();
+
+		// Calculate the angle between the player's forward vector and the direction to the enemy
+		float DotProduct = FVector::DotProduct(ForwardVector, DirectionToEnemy);
+		float Angle = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
+
+		// Only consider enemies within a 45-degree angle in front of the player
+		if (Angle <= 120.0f)
+		{
+			if (DistanceSq < ClosestDistanceSq)
+			{
+				ClosestDistanceSq = DistanceSq;
+				ClosestEnemy = Enemy;
+			}
+		}
+	}
+
+	CombatTarget = ClosestEnemy; // May be nullptr if no suitable target found
+	if (CombatTarget)
+	{
+		OrientTowards(CombatTarget);
+	}
+}
+
+void APlayerCharacter::OrientTowards(AActor* Target)
+{
+	if (Target)
+	{
+		FRotator TargetRotation = (Target->GetActorLocation() - GetActorLocation()).Rotation();
+		SetActorRotation(TargetRotation);
 	}
 }
 
@@ -485,12 +614,23 @@ EDodgeDirection APlayerCharacter::CalculateDodgeDirection(const FVector& Directi
 	}
 }
 
-void APlayerCharacter::EquipWeapon(AWeapon* Weapon)
+void APlayerCharacter::EquipWeapon(/*AWeapon* WeaponEquipped*/)
 {
-	Weapon->Equip(GetMesh(), FName("RightHandSocket"), this, this);
+	/*
+	WeaponEquipped->Equip(GetMesh(), FName("RightHandSocket"), this, this);
 	CharacterState = ECharacterState::ECS_EquippedMagicFire;
 	OverlappingItem = nullptr;
-	EquippedWeapon = Weapon;
+	EquippedWeapon = WeaponEquipped;
+	*/
+
+	UWorld* World = GetWorld();
+	if (World && WeaponClass)
+	{
+		AWeapon* DefaultWeapon = World->SpawnActor<AWeapon>(WeaponClass);
+		DefaultWeapon->Equip(GetMesh(), FName("RightHandSocket"), this, this);
+		CharacterState = ECharacterState::ECS_EquippedMagicFire;
+		EquippedWeapon = DefaultWeapon;
+	}
 }
 
 void APlayerCharacter::AttackEnd()
@@ -509,6 +649,11 @@ bool APlayerCharacter::CanAttack()
 {
 	return ActionState == EActionState::EAS_Unoccupied &&
 		CharacterState != ECharacterState::ECS_Unequipped;
+}
+
+void APlayerCharacter::AnimAttackEnd()
+{
+	bCanAttack = true;
 }
 
 bool APlayerCharacter::CanDisarm()

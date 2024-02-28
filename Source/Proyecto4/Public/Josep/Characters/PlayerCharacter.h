@@ -67,6 +67,13 @@ public:
 	float CameraDistanceFromTarget = 30.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool isAiming = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bIsCharging = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bCanAttack = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bcanRotate = false;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -135,7 +142,12 @@ protected:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void EKeyPressed();
+	void StartCharging();
+	void StopCharging();
+	void ExecuteChargedAttack();
 	virtual void Attack() override;
+	void FindAndSetClosestEnemyInSight();
+	void OrientTowards(AActor* Target);
 	virtual void AttackFire();
 	virtual void AttackGravity();
 	virtual void AttackLightning();
@@ -144,10 +156,12 @@ protected:
 	//void DodgeCombo(const FInputActionValue& Value);
 
 	/* Combat */
-	void EquipWeapon(AWeapon* Weapon);
+	void EquipWeapon(/*AWeapon* WeaponEquipped*/);
 	virtual void AttackEnd() override;
 	virtual void DodgeEnd() override;
 	virtual bool CanAttack() override;
+	UFUNCTION(BlueprintCallable)
+	void AnimAttackEnd();
 	bool CanDisarm();
 	bool CanArm();
 	void Disarm();
@@ -226,6 +240,13 @@ private:
 	bool bCanTrigger = true;
 	const float TriggerCooldown = 0.5f; // Set your desired cooldown time here
 	FTimerHandle TimerHandle_TriggerCooldown;
+
+	
+	float ChargeDuration = 0.0f;
+	const float MaxChargeDuration = 2.0f;
+
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<class AWeapon> WeaponClass;
 
 public:
 	FORCEINLINE ECharacterState GetCharacterState() const { return CharacterState; }
