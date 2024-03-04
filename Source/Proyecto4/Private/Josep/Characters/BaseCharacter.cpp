@@ -199,36 +199,53 @@ void ABaseCharacter::SpawnLightningStrikeFromAnimation()
 
 		float TraceDistance = 10000.0f;
 
-		FVector EndLocation = StartLocation + ShootDirection * TraceDistance;
+		FVector EndLocation = StartLocation + GetActorForwardVector() * TraceDistance;
 
 		FHitResult HitResult;
 		FCollisionQueryParams CollisionParams;
 
 		bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, StartLocation, EndLocation, ECC_GameTraceChannel1, CollisionParams);
 
+		FVector EndPoint;
+
 		if (bHit)
 		{
 			FVector CollisionPoint = HitResult.Location;
-			DrawDebugLine(
-				GetWorld(),
-				StartLocation,
-				HitResult.Location,
-				FColor(255, 0, 0),
-				false, -1, 0,
-				12.333
-			);
-
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.Owner = this;
+		}
 
-			UNiagaraComponent* ProjectileBeam = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), LightningEffectSystem, StartLocation);
-
-			if (ProjectileBeam)
-
-			{
-				ProjectileBeam->SetNiagaraVariableVec3(FString("PosicionFinal"), HitResult.Location);
-
+		if (AimTarget) {
+			if (AimTarget->ActorHasTag("Bateria")) {
+				UGameplayStatics::ApplyDamage(AimTarget, 10, GetInstigator()->GetController(), this, UDamageType::StaticClass());
 			}
+		}
+
+		if (CombatTarget) {
+			EndPoint = CombatTarget->GetActorLocation();
+			UGameplayStatics::ApplyDamage(CombatTarget, 10, GetInstigator()->GetController(), this, UDamageType::StaticClass());
+			IHitInterface* HitInterface = Cast<IHitInterface>(CombatTarget);
+			if (HitInterface)
+			{
+				HitInterface->Execute_GetHit(CombatTarget, CombatTarget->GetActorLocation(), GetOwner());
+			}
+			//UE_LOG(LogTemp, Warning, TEXT("damage to %s en location: %s"), *CombatTarget->GetName(), *CombatTarget->GetActorLocation().ToString());
+
+		}
+
+		if (CombatTarget == nullptr){
+			EndPoint = GetActorLocation() + GetActorForwardVector() * 1000.0f;
+			//UE_LOG(LogTemp, Warning, TEXT("casting rayo en location: %s"), EndPoint);
+
+		}
+
+		UNiagaraComponent* ProjectileBeam = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), LightningEffectSystem, StartLocation);
+
+		if (ProjectileBeam)
+
+		{
+			ProjectileBeam->SetNiagaraVariableVec3(FString("PosicionFinal"), EndPoint);
+
 		}
 	}
 }

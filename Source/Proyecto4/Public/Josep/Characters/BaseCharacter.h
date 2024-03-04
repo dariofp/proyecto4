@@ -97,6 +97,9 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = Combat)
 	AActor* CombatTarget;
 
+	UPROPERTY(BlueprintReadOnly, Category = Combat)
+	AActor* AimTarget;
+
 	UPROPERTY(EditAnywhere, Category = Combat)
 	double WarpTargetDistance = 75.f;
 

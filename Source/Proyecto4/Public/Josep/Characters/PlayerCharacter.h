@@ -147,6 +147,10 @@ public:
 	void FinAim();
 	virtual void FinAim_Implementation();
 
+	UFUNCTION(BlueprintNativeEvent, Category = "Attack")
+	void CreateChaos();
+	virtual void CreateChaos_Implementation();
+
 	UFUNCTION(BlueprintCallable, Category = "Attack")
 	void MoveForward(float ScaleValue);
 

@@ -72,7 +72,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 		PlayerOverlay->SetManaBarPercent(Attributes->GetManaPercent());
 	}
 
-	if (CombatTarget && bShouldOrientTowardsTarget)
+	if (CombatTarget && !AimTarget && bShouldOrientTowardsTarget)
 	{
 		OrientTowards(CombatTarget);
 
@@ -113,17 +113,17 @@ void APlayerCharacter::Tick(float DeltaTime)
 		}
 	}
 
-	/*
-	if (CombatTarget) 
+	
+	if (AimTarget) 
 	{
-		FVector TargetLocation = CombatTarget->GetActorLocation();
+		FVector TargetLocation = AimTarget->GetActorLocation();
 
 		FVector CameraLocation = CameraBoom->GetComponentLocation();
 		FRotator AimingTargetRotation = (TargetLocation - CameraLocation).Rotation();
 		FRotator NewControlRotation = FRotator(-10, AimingTargetRotation.Yaw, 0);
 		GetController()->SetControlRotation(NewControlRotation);
 	}
-
+	/*
 	if (bIsCharging)
 	{
 		ChargeDuration += DeltaTime;
@@ -283,6 +283,7 @@ void APlayerCharacter::PerformRegularAttack()
 	{
 	case ECurrentAttackType::Melee:
 		Super::Attack();
+		CreateChaos();
 		FindAndSetClosestEnemyInSight();
 		SelectAttackMontageSection(MeleeMontage);
 		ActionState = EActionState::EAS_Melee;
@@ -501,6 +502,10 @@ void APlayerCharacter::FinAim_Implementation()
 {
 }
 
+void APlayerCharacter::CreateChaos_Implementation()
+{
+}
+
 void APlayerCharacter::MoveForward(float ScaleValue)
 {
 	const FRotator Rotation = Controller->GetControlRotation();
@@ -552,15 +557,15 @@ void APlayerCharacter::ChangeTargetByDirection(ETargetSwitchDirection SwitchDire
 
 void APlayerCharacter::LockOn(bool bSwitchLeft)
 {
-	if (EnemiesInRange.Num() > 0 && CombatTarget)
+	if (EnemiesInRange.Num() > 0 && AimTarget)
 	{
-		const FVector CurrentTargetLocation = CombatTarget->GetActorLocation();
+		const FVector CurrentTargetLocation = AimTarget->GetActorLocation();
 		AActor* BestTarget = nullptr;
 		float BestAngle = 180.0f;
 
 		for (AActor* Enemy : EnemiesInRange)
 		{
-			if (Enemy != CombatTarget)
+			if (Enemy != AimTarget)
 			{
 				FVector DirectionToEnemy = Enemy->GetActorLocation() - CurrentTargetLocation;
 				DirectionToEnemy.Normalize();
@@ -595,7 +600,7 @@ void APlayerCharacter::LockOn(bool bSwitchLeft)
 
 		if (BestTarget)
 		{
-			CombatTarget = BestTarget;
+			AimTarget = BestTarget;
 		}
 	}
 }
@@ -604,7 +609,7 @@ void APlayerCharacter::LockOn()
 {
 	if (EnemiesInRange.Num() > 0)
 	{
-		if (!CombatTarget || !EnemiesInRange.Contains(CombatTarget))
+		if (!AimTarget || !EnemiesInRange.Contains(AimTarget))
 		{
 			float ClosestEnemyDistance = FLT_MAX;
 			AActor* ClosestEnemy = nullptr;
@@ -620,14 +625,14 @@ void APlayerCharacter::LockOn()
 				}
 			}
 
-			CombatTarget = ClosestEnemy;
+			AimTarget = ClosestEnemy;
 		}
 		else
 		{
-			CombatTarget = nullptr;
+			AimTarget = nullptr;
 		}
 
-		if (CombatTarget)
+		if (AimTarget)
 		{
 			bUseControllerRotationYaw = true;
 			CameraBoom->SetRelativeLocation(FVector(0, 35, 70));
@@ -642,6 +647,10 @@ void APlayerCharacter::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent,
 		EnemiesInRange.AddUnique(OtherActor);
 		//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Enemigo Detectado"));
 	}
+
+	if (OtherActor->ActorHasTag(FName("Bateria"))) {
+		EnemiesInRange.AddUnique(OtherActor);
+	}
 }
 
 void APlayerCharacter::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
@@ -650,9 +659,9 @@ void APlayerCharacter::OnSphereEndOverlap(UPrimitiveComponent* OverlappedCompone
 	{
 		EnemiesInRange.Remove(OtherActor);
 	}
-	if (CombatTarget == OtherActor)
+	if (AimTarget == OtherActor)
 	{
-		CombatTarget = nullptr;
+		AimTarget = nullptr;
 		bUseControllerRotationYaw = false;
 		CameraBoom->SetRelativeLocation(FVector(-20, 35, 70));
 	}
@@ -798,19 +807,22 @@ void APlayerCharacter::FindAndSetClosestEnemyInSight()
 
 	for (AActor* Enemy : EnemiesInRange)
 	{
-		FVector DirectionToEnemy = Enemy->GetActorLocation() - MyLocation;
-		float DistanceSq = DirectionToEnemy.SizeSquared();
-		DirectionToEnemy.Normalize();
-
-		float DotProduct = FVector::DotProduct(ForwardVector, DirectionToEnemy);
-		float Angle = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
-
-		if (Angle <= 120.0f)
+		if (Enemy->ActorHasTag("Enemy")) 
 		{
-			if (DistanceSq < ClosestDistanceSq)
+			FVector DirectionToEnemy = Enemy->GetActorLocation() - MyLocation;
+			float DistanceSq = DirectionToEnemy.SizeSquared();
+			DirectionToEnemy.Normalize();
+
+			float DotProduct = FVector::DotProduct(ForwardVector, DirectionToEnemy);
+			float Angle = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
+
+			if (Angle <= 120.0f)
 			{
-				ClosestDistanceSq = DistanceSq;
-				ClosestEnemy = Enemy;
+				if (DistanceSq < ClosestDistanceSq)
+				{
+					ClosestDistanceSq = DistanceSq;
+					ClosestEnemy = Enemy;
+				}
 			}
 		}
 	}
