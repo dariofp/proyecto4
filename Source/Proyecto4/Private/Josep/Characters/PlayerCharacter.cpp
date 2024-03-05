@@ -295,13 +295,18 @@ void APlayerCharacter::PerformRegularAttack()
 		break;
 	case ECurrentAttackType::Lightning:
 		SelectAttackMontageSection(LightningMontage);
-		//Attributes->UseMana(Attributes->GetDodgeCost());
+		Attributes->UseMana(Attributes->GetDodgeCost());
 		ActionState = EActionState::EAS_Melee;
 		return;
 		
 		break;
 	case ECurrentAttackType::Gravity:
 		SelectAttackMontageSection(GravityMontage);
+		Attributes->UseMana(Attributes->GetDodgeCost());
+		ActionState = EActionState::EAS_Melee;
+		break;
+	case ECurrentAttackType::Vital:
+		PlayMontageSection(VitalMontage, "Base");
 		Attributes->UseMana(Attributes->GetDodgeCost());
 		ActionState = EActionState::EAS_Melee;
 		break;
@@ -393,7 +398,7 @@ void APlayerCharacter::AttackMagicCombo()
 		AttackCombo(ECurrentAttackType::Melee);
 		break;
 	case ERMBAction::VitalAttack:
-		AttackCombo(ECurrentAttackType::Lightning);
+		AttackCombo(ECurrentAttackType::Vital);
 		break;
 	}
 }

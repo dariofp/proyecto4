@@ -66,7 +66,8 @@ enum class ECurrentAttackType
 	Melee UMETA(DisplayName = "Melee"),
 	Fire UMETA(DisplayName = "Fire"),
 	Lightning UMETA(DisplayName = "Lightning"),
-	Gravity UMETA(DisplayName = "Gravity")
+	Gravity UMETA(DisplayName = "Gravity"),
+	Vital UMETA(DisplayName = "Vital")
 };
 
 UENUM(BlueprintType)

@@ -124,6 +124,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = Combat)
 	UAnimMontage* GravityMontage;
 
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+	UAnimMontage* VitalMontage;
+
 	UPROPERTY(EditAnywhere, Category = Combat)
 	float TimeInCombo;
 
