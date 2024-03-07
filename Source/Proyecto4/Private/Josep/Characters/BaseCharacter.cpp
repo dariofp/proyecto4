@@ -239,14 +239,19 @@ void ABaseCharacter::SpawnLightningStrikeFromAnimation()
 
 		}
 
-		UNiagaraComponent* ProjectileBeam = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), LightningEffectSystem, StartLocation);
+		BeamNiagara(StartLocation, EndPoint);
+	}
+}
 
-		if (ProjectileBeam)
+void ABaseCharacter::BeamNiagara(const FVector& StartLocation, const FVector& EndPoint)
+{
+	UNiagaraComponent* ProjectileBeam = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), LightningEffectSystem, StartLocation);
 
-		{
-			ProjectileBeam->SetNiagaraVariableVec3(FString("PosicionFinal"), EndPoint);
+	if (ProjectileBeam)
 
-		}
+	{
+		ProjectileBeam->SetNiagaraVariableVec3(FString("PosicionFinal"), EndPoint);
+
 	}
 }
 

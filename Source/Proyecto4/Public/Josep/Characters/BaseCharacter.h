@@ -39,6 +39,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Animation")
 	void SpawnLightningStrikeFromAnimation();
 
+	void BeamNiagara(const FVector& StartLocation, const FVector& EndPoint);
+
 	UPROPERTY(EditAnywhere, Category = "Effects")
 	UNiagaraSystem* LightningEffectSystem; // Niagara system for the lightning effect
 

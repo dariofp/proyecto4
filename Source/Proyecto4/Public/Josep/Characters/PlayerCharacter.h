@@ -331,12 +331,6 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	USphereComponent* DetectionSphere;
 
-	/*UPROPERTY(VisibleAnywhere, Category = Hair)
-	UGroomComponent* Hair;
-
-	UPROPERTY(VisibleAnywhere, Category = Hair)
-	UGroomComponent* Eyebrows;*/
-
 	UPROPERTY(VisibleInstanceOnly)
 	AItem* OverlappingItem;
 
@@ -373,11 +367,15 @@ private:
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<class AWeapon> WeaponClass;
 
+	int32 LightningStrikeCount = 0;
+
 	/*-------------------------<Input Buffering>---------------------------------------*/
 	bool bDashInputBuffered = false;
 	bool bAttackInputBuffered = false;
 	float LastInputTimeDash = 0.0f;
 	float LastInputTimeAttack = 0.0f;
+
+	bool bShieldActive = false;
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities")
@@ -385,6 +383,15 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void UnlockAbility(FString AbilityName);
 	bool IsAbilityUnlocked(FString AbilityName) const;
+	void ActivateShield();
+	void ActivateVitalAttackEffects();
+	void DeactivateVitalAttackEffects();
+	UFUNCTION(BlueprintCallable)
+	void SpawnLightning();
+	UFUNCTION(BlueprintCallable)
+	void ResetLightningAttack();
+	void SpawnOrAdjustDamageCollider(int32 NumLightnings);
+	float CalculateColliderSizeBasedOnLightning(int32 NumLightnings);
 	FORCEINLINE ECharacterState GetCharacterState() const { return CharacterState; }
 	FORCEINLINE EActionState GetActionState() const { return ActionState; }
 };

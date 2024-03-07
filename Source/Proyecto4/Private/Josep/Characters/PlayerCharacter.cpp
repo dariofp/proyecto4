@@ -51,16 +51,6 @@ APlayerCharacter::APlayerCharacter()
 	DetectionSphere->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Overlap);
 
 	DashTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("DashTimeline"));
-
-	/*Hair = CreateDefaultSubobject<UGroomComponent>(TEXT("Hair"));
-	Hair->SetupAttachment(GetMesh());
-	Hair->AttachmentName = FString("head");
-
-	Eyebrows = CreateDefaultSubobject<UGroomComponent>(TEXT("Eyebrows"));
-	Eyebrows->SetupAttachment(GetMesh());
-	Eyebrows->AttachmentName = FString("head");*/
-	//Weapon = CreateDefaultSubobject<AWeapon>(TEXT("WeaponCharacter"));
-	//DetectionSphere->SetupAttachment(GetRootComponent());
 }
 
 void APlayerCharacter::Tick(float DeltaTime)
@@ -199,6 +189,11 @@ void APlayerCharacter::Dash()
 		return;
 	}
 
+	if (IsAbilityUnlocked(TEXT("DashShield")))
+	{
+		ActivateShield();
+	}
+
 	if (bIsCharging) {
 		bIsCharging = false;
 		FinAim();
@@ -213,23 +208,27 @@ void APlayerCharacter::Dash()
 		RevertMaterials();
 	}
 
-	if (Direccion.IsNearlyZero())
-	{
-		return;
-	}
-	
-	ActionState = EActionState::EAS_Dodge;
+	FVector DashDirection;
 
-	FVector CameraForward = UKismetMathLibrary::GetForwardVector(GetControlRotation());
-	FVector CameraRight = UKismetMathLibrary::GetRightVector(GetControlRotation());
-	CameraForward.Z = 0;
-	CameraRight.Z = 0;
-	CameraForward.Normalize();
-	CameraRight.Normalize();
+    if (Direccion.IsNearlyZero())
+    {
+        DashDirection = GetActorForwardVector();
+    }
+    else
+    {
+        FVector CameraForward = UKismetMathLibrary::GetForwardVector(GetControlRotation());
+        FVector CameraRight = UKismetMathLibrary::GetRightVector(GetControlRotation());
+        CameraForward.Z = 0;
+        CameraRight.Z = 0;
+        CameraForward.Normalize();
+        CameraRight.Normalize();
 
-	FVector WorldDirection = CameraForward * Direccion.Y + CameraRight * Direccion.X;
-	FVector DashDirection = WorldDirection.GetSafeNormal();
+        DashDirection = CameraForward * Direccion.Y + CameraRight * Direccion.X;
+    }
+
+    DashDirection = DashDirection.GetSafeNormal();
 	DashStartLocation = GetActorLocation();
+
 	DashTargetLocation = DashStartLocation + DashDirection * DashDistance;
 
 	FHitResult SweepResult;
@@ -309,6 +308,7 @@ void APlayerCharacter::PerformRegularAttack()
 		PlayMontageSection(VitalMontage, "Base");
 		Attributes->UseMana(Attributes->GetDodgeCost());
 		ActionState = EActionState::EAS_Melee;
+		ActivateVitalAttackEffects();
 		break;
 	default:
 		// Handle default case or log an error
@@ -450,6 +450,12 @@ void APlayerCharacter::ToggleAimState()
 
 float APlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
+	if (bShieldActive)
+	{
+		bShieldActive = false;
+
+		return 0.0f;
+	}
 	HandleDamage(DamageAmount);
 	SetHUDHealth();
 	return DamageAmount;
@@ -749,12 +755,7 @@ void APlayerCharacter::EKeyPressed()
 void APlayerCharacter::StartCharging()
 {
 	bIsCharging = true;
-	//ChargeStartTime = GetWorld()->GetTimeSeconds();
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle_ChargeAttack, this, &APlayerCharacter::ExecuteChargedAttack, ChargeAttackThreshold, false);
-
-	//bIsCharging = true;
-
-	//GetWorld()->GetTimerManager().SetTimer(TimerHandle_ChargeAttack, this, &APlayerCharacter::ExecuteChargedAttack, 1.0f, false);
 }
 
 void APlayerCharacter::StopCharging()
@@ -1170,4 +1171,92 @@ bool APlayerCharacter::IsAbilityUnlocked(FString AbilityName) const
 		}
 	}
 	return false;
+}
+
+void APlayerCharacter::ActivateShield()
+{
+	bShieldActive = true;
+
+	// Falta añadir feedback visual aquí
+}
+
+
+void APlayerCharacter::ActivateVitalAttackEffects()
+{
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	if (MovementComponent)
+	{
+		MovementComponent->MaxWalkSpeed *= 1.6;
+	}
+
+	ActivateShield();
+
+	FTimerHandle TimerHandle;
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle, this, &APlayerCharacter::DeactivateVitalAttackEffects, 10.0f, false);
+}
+
+void APlayerCharacter::DeactivateVitalAttackEffects()
+{
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	if (MovementComponent)
+	{
+		MovementComponent->MaxWalkSpeed /= 1.6; 
+	}
+	bShieldActive = false;
+}
+
+void APlayerCharacter::SpawnLightning()
+{
+	TArray<float> Angles;
+	switch (LightningStrikeCount)
+	{
+	case 0:
+		Angles.Add(0);
+		break;
+	case 1:
+		Angles = { -30, 0, 30 };
+		break;
+	default:
+		Angles = { -60, -30, 0, 30, 60 };
+		break;
+	}
+
+	FVector CharacterLocation = GetActorLocation() + FVector(0, 0, -65);
+	FVector ForwardVector = GetActorForwardVector();
+
+	for (float Angle : Angles)
+	{
+		FVector Direction = ForwardVector.RotateAngleAxis(Angle, FVector::UpVector);
+		FVector BeamEndLocation = CharacterLocation + (Direction * 1000.0f);
+
+		BeamNiagara(CharacterLocation, BeamEndLocation);
+	}
+	SpawnOrAdjustDamageCollider(Angles.Num());
+
+	if (LightningStrikeCount < 2) {
+		LightningStrikeCount++;
+	}
+}
+
+void APlayerCharacter::ResetLightningAttack()
+{
+	LightningStrikeCount = 0;
+}
+
+void APlayerCharacter::SpawnOrAdjustDamageCollider(int32 NumLightnings)
+{
+	float ColliderSize = CalculateColliderSizeBasedOnLightning(NumLightnings);
+
+	FVector ColliderLocation = GetActorLocation() + GetActorForwardVector() * 2;
+	// Example: AdjustColliderSizeAndLocation(ColliderSize, ColliderLocation); // Implement this based on your game's system
+
+	// The collider should then deal damage to enemies within it
+	// Ensure your collider's overlap events are set up to handle damage
+}
+
+float APlayerCharacter::CalculateColliderSizeBasedOnLightning(int32 NumLightnings)
+{
+	float BaseSize = 100.0f; 
+	float SizeIncrement = 50.0f;
+	return BaseSize + (SizeIncrement * (NumLightnings - 1));
 }
