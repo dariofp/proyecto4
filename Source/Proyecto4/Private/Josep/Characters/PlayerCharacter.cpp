@@ -135,7 +135,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Jump);
 		EnhancedInputComponent->BindAction(EKeyAction, ETriggerEvent::Triggered, this, &APlayerCharacter::EKeyPressed);
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &APlayerCharacter::AttackMeleeCombo);
-		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Completed, this, &APlayerCharacter::Dash);
+		EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Started, this, &APlayerCharacter::Dash);
 		EnhancedInputComponent->BindAction(LockAction, ETriggerEvent::Completed, this, &APlayerCharacter::Lock);
 		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &APlayerCharacter::ToggleAimState);
 		EnhancedInputComponent->BindAction(ChangeTargetAction, ETriggerEvent::Triggered, this, &APlayerCharacter::SwitchTargetAxis);
@@ -188,6 +188,8 @@ void APlayerCharacter::Dash()
 		LastInputTimeDash = GetWorld()->GetTimeSeconds();
 		return;
 	}
+
+	Attributes->UseMana(Attributes->GetDodgeCost());
 
 	if (IsAbilityUnlocked(TEXT("DashShield")))
 	{
@@ -293,6 +295,8 @@ void APlayerCharacter::PerformRegularAttack()
 		ActionState = EActionState::EAS_Melee;
 		break;
 	case ECurrentAttackType::Lightning:
+		if (!HasEnoughMana()) return;
+		FindAndSetClosestEnemyInSight();
 		SelectAttackMontageSection(LightningMontage);
 		Attributes->UseMana(Attributes->GetDodgeCost());
 		ActionState = EActionState::EAS_Melee;
@@ -361,6 +365,8 @@ void APlayerCharacter::ExecuteChargedAttack()
 		PlayMontageSection(FireMontage, "Charged");
 		break;
 	case ECurrentAttackType::Lightning:
+		if (!HasEnoughMana()) return;
+		Attributes->UseMana(Attributes->GetDodgeCost());
 		if (IsAbilityUnlocked("ChargedLightning"))
 		{
 			Super::Attack();
