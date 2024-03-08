@@ -223,7 +223,7 @@ void ABaseCharacter::SpawnLightningStrikeFromAnimation()
 
 		if (CombatTarget) {
 			EndPoint = CombatTarget->GetActorLocation();
-			UGameplayStatics::ApplyDamage(CombatTarget, 10, GetInstigator()->GetController(), this, UDamageType::StaticClass());
+			UGameplayStatics::ApplyDamage(CombatTarget, 35, GetInstigator()->GetController(), this, UDamageType::StaticClass());
 			IHitInterface* HitInterface = Cast<IHitInterface>(CombatTarget);
 			if (HitInterface)
 			{

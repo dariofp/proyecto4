@@ -284,7 +284,6 @@ void APlayerCharacter::PerformRegularAttack()
 	{
 	case ECurrentAttackType::Melee:
 		Super::Attack();
-		CreateChaos();
 		FindAndSetClosestEnemyInSight();
 		SelectAttackMontageSection(MeleeMontage);
 		ActionState = EActionState::EAS_Melee;
@@ -516,10 +515,6 @@ void APlayerCharacter::SetAttackToNone()
 }
 
 void APlayerCharacter::FinAim_Implementation()
-{
-}
-
-void APlayerCharacter::CreateChaos_Implementation()
 {
 }
 
