@@ -8,7 +8,7 @@ public class Proyecto4 : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "HairStrandsCore", "Niagara", "UMG", "AIModule", "AnimGraphRuntime" });
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "UMG", "AIModule", "AnimGraphRuntime" });
 
         PrivateDependencyModuleNames.AddRange(new string[] {  });
 
