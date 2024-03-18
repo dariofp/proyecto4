@@ -85,6 +85,47 @@ void AWeapon::ExecuteGetHit(FHitResult& BoxHit)
 	}
 }
 
+void AWeapon::ActivateCollider()
+{
+	FVector ColliderSize = GetWeaponBox()->GetScaledBoxExtent();
+	FVector ColliderLocation = GetWeaponBox()->GetComponentLocation();
+	FRotator ColliderRotation = GetWeaponBox()->GetComponentRotation();
+
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECollisionChannel::ECC_WorldDynamic));
+
+	TArray<AActor*> ActorsToIgnore;
+	ActorsToIgnore.Add(this);
+	ActorsToIgnore.Add(GetOwner());
+
+	TArray<AActor*> OutActors; // This will hold the actors found by BoxOverlapActors
+
+	bool bFoundOverlaps = UKismetSystemLibrary::BoxOverlapActors(
+		GetWorld(),
+		ColliderLocation,
+		ColliderSize,
+		ObjectTypes,
+		ABaseCharacter::StaticClass(), // Assuming you want to detect overlaps with ABaseCharacter actors
+		ActorsToIgnore,
+		OutActors
+	);
+
+	TArray<FHitResult> OutHitResults; // Array to store FHitResults for each actor
+
+	if (bFoundOverlaps)
+	{
+		for (AActor* OverlappedActor : OutActors)
+		{
+			
+			if (OverlappedActor != nullptr)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("An Actor's name is %s"), *OverlappedActor->GetName());
+				UGameplayStatics::ApplyDamage(OverlappedActor, Damage, GetInstigator()->GetController(), this, UDamageType::StaticClass());
+			}
+		}
+	}
+}
+
 void AWeapon::BoxTrace(FHitResult& BoxHit)
 {
 	const FVector Start = BoxTraceStart->GetComponentLocation();
@@ -114,4 +155,3 @@ void AWeapon::BoxTrace(FHitResult& BoxHit)
 	);
 	IgnoreActors.AddUnique(BoxHit.GetActor());
 }
-

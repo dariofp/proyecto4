@@ -376,3 +376,20 @@ void ABaseCharacter::SetWeaponCollisionEnabled(ECollisionEnabled::Type Collision
 		EquippedWeapon->IgnoreActors.Empty();
 	}
 }
+
+void ABaseCharacter::ActivateCollider()
+{
+	if (EquippedWeapon && EquippedWeapon->GetWeaponBox())
+	{
+		EquippedWeapon->ActivateCollider();
+		EquippedWeapon->IgnoreActors.Empty();
+	}
+}
+
+void ABaseCharacter::AdjustCollisionBox(const FVector& NewSize)
+{
+	if (EquippedWeapon && EquippedWeapon->GetWeaponBox())
+	{
+		EquippedWeapon->GetWeaponBox()->SetBoxExtent(NewSize);
+	}
+}

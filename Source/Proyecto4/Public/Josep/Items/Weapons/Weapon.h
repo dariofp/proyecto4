@@ -20,8 +20,8 @@ public:
 	AWeapon();
 	void Equip(USceneComponent* InParent, FName InSocketName, AActor* NewOwner, APawn* NewInstigator);
 	void DisableSphereCollision();
+	void ActivateCollider();
 	void AttachMeshToSocket(USceneComponent* InParent, const FName& InSocketName);
-
 	TArray<AActor*> IgnoreActors;
 protected:
 	virtual void BeginPlay() override;
@@ -37,6 +37,8 @@ protected:
 	//void CreateFields(const FVector& FieldLocation);
 private:
 	void BoxTrace(FHitResult& BoxHit);
+
+	
 
 	UPROPERTY(EditAnywhere, Category = "Weapon Properties")
 	FVector BoxTraceExtent = FVector(10.f);

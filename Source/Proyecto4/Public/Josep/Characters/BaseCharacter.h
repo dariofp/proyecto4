@@ -85,6 +85,12 @@ protected:
 	void SetWeaponCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
 
 	UFUNCTION(BlueprintCallable)
+	void ActivateCollider();
+	
+	UFUNCTION(BlueprintCallable)
+	void AdjustCollisionBox(const FVector& NewSize);
+
+	UFUNCTION(BlueprintCallable)
 	void ComboAdd();
 
 	UFUNCTION(BlueprintCallable)
