@@ -49,6 +49,7 @@ void ABaseCharacter::Attack()
 void ABaseCharacter::Die()
 {
 	Tags.Add(FName("Dead"));
+
 	PlayDeathMontage();
 }
 

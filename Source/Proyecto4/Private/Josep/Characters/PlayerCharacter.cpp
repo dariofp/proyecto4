@@ -14,6 +14,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Josep/Components/AttributeComponent.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Kismet/GameplayStatics.h"
 //#include "GroomVisualizationData.h"
 #include "Josep/Items/Item.h"
 #include "Josep/Items/Weapons/Weapon.h"
@@ -21,6 +22,7 @@
 #include "Josep/HUD/PlayerHUD.h"
 #include "Josep/HUD/PlayerOverlay.h"
 #include "Josep/Items/Soul.h"
+
 
 APlayerCharacter::APlayerCharacter()
 {
@@ -89,13 +91,13 @@ void APlayerCharacter::Tick(float DeltaTime)
 		}
 	}
 
-	if (bAttackInputBuffered && (GetWorld()->GetTimeSeconds() - LastInputTimeAttack) <= InputBufferTime)
+	if (bAttackInputBuffered && (GetWorld()->GetTimeSeconds() - LastInputTimeAttack) <= InputBufferTime && bCanAttack && !bIsCharging)
 	{
 		if (!bCanDash)
 		{
 			CancelDash(EActionState::EAS_Unoccupied);
 		}
-		if (CanAttack() || bCanAttack)
+		if ((CanAttack() || bCanAttack))
 		{
 			bCanAttack = false;
 			PerformRegularAttack();
@@ -200,7 +202,6 @@ void APlayerCharacter::Dash()
 		bIsCharging = false;
 		FinAim();
 	}
-	
 
 	if (bCanDodge)
 	{
@@ -274,7 +275,10 @@ void APlayerCharacter::OnAttackReleased()
 	{
 		ReleasedChargedAttack();
 	}
-	bIsCharging = false;
+	if (bIsCharging) {
+		bIsCharging = false;
+		FinAim();
+	}
 	//GetWorld()->GetTimerManager().ClearTimer(TimerHandle_ChargeAttack);
 }
 
@@ -357,6 +361,7 @@ void APlayerCharacter::ExecuteChargedAttack()
 	case ECurrentAttackType::Melee:
 		Super::Attack();
 		bcanRotate = true;
+		bCanAttack = false;
 		PlayMontageSection(MeleeMontage, "Charged");
 		ActionState = EActionState::EAS_Melee;
 		break;
@@ -370,6 +375,7 @@ void APlayerCharacter::ExecuteChargedAttack()
 		{
 			Super::Attack();
 			bcanRotate = true;
+			bCanAttack = false;
 			PlayMontageSection(LightningMontage, "Charged");
 			ActionState = EActionState::EAS_Melee;
 		}
@@ -1064,6 +1070,9 @@ void APlayerCharacter::Die()
 
 	ActionState = EActionState::EAS_Dead;
 	DisableMeshCollision();
+	FName MenuSceneName(TEXT("MainMenuHub"));
+
+	UGameplayStatics::OpenLevel(this, MenuSceneName);
 }
 
 bool APlayerCharacter::HasEnoughMana()
@@ -1206,6 +1215,13 @@ void APlayerCharacter::DeactivateVitalAttackEffects()
 	bShieldActive = false;
 }
 
+void APlayerCharacter::AddLightning() 
+{
+	if (LightningStrikeCount < 2) {
+		LightningStrikeCount++;
+	}
+}
+
 void APlayerCharacter::SpawnLightning()
 {
 	TArray<float> Angles;
@@ -1233,10 +1249,6 @@ void APlayerCharacter::SpawnLightning()
 		BeamNiagara(CharacterLocation, BeamEndLocation);
 	}
 	SpawnOrAdjustDamageCollider(Angles.Num());
-
-	if (LightningStrikeCount < 2) {
-		LightningStrikeCount++;
-	}
 }
 
 void APlayerCharacter::ResetLightningAttack()
@@ -1249,10 +1261,6 @@ void APlayerCharacter::SpawnOrAdjustDamageCollider(int32 NumLightnings)
 	float ColliderSize = CalculateColliderSizeBasedOnLightning(NumLightnings);
 
 	FVector ColliderLocation = GetActorLocation() + GetActorForwardVector() * 2;
-	// Example: AdjustColliderSizeAndLocation(ColliderSize, ColliderLocation); // Implement this based on your game's system
-
-	// The collider should then deal damage to enemies within it
-	// Ensure your collider's overlap events are set up to handle damage
 }
 
 float APlayerCharacter::CalculateColliderSizeBasedOnLightning(int32 NumLightnings)

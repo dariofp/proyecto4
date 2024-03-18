@@ -383,6 +383,8 @@ public:
 	void ActivateVitalAttackEffects();
 	void DeactivateVitalAttackEffects();
 	UFUNCTION(BlueprintCallable)
+	void AddLightning();
+	UFUNCTION(BlueprintCallable)
 	void SpawnLightning();
 	UFUNCTION(BlueprintCallable)
 	void ResetLightningAttack();
